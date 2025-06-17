@@ -13,6 +13,10 @@ import {
   Clock,
   User,
   Phone,
+  Package,
+  TrendingDown,
+  TrendingUp,
+  Minus,
 } from "lucide-react"
 import { QRCodeCanvas } from "qrcode.react"
 import { Button } from "@/components/ui/button"
@@ -44,6 +48,7 @@ import type { Stand, StandStock, Product } from "@/lib/types"
 import { Badge } from "@/components/ui/badge"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { cn } from "@/lib/utils"
+import { Progress } from "@/components/ui/progress"
 
 const initialStands: Stand[] = JSON.parse(JSON.stringify(mockStands)) // Deep copy
 
@@ -54,6 +59,7 @@ export default function StandsPage() {
   const [editingStand, setEditingStand] = useState<Stand | null>(null)
   const [viewingQrStand, setViewingQrStand] = useState<Stand | null>(null)
   const [expandedStandId, setExpandedStandId] = useState<string | null>(null)
+  const [viewingStockStand, setViewingStockStand] = useState<Stand | null>(null)
 
   const { toast } = useToast()
 
@@ -142,10 +148,20 @@ export default function StandsPage() {
         }}
       />
 
+      <StockDetailDialog
+        stand={viewingStockStand}
+        isOpen={!!viewingStockStand}
+        onOpenChange={(isOpen) => {
+          if (!isOpen) setViewingStockStand(null)
+        }}
+      />
+
       <Card>
         <CardHeader>
           <CardTitle>All Stands</CardTitle>
-          <CardDescription>Manage your event distribution points. View, edit, or generate QR codes.</CardDescription>
+          <CardDescription>
+            Manage your event distribution points. View detailed stock, edit, or generate QR codes.
+          </CardDescription>
           <div className="mt-4">
             <Input
               placeholder="Search stands by name or location..."
@@ -163,126 +179,156 @@ export default function StandsPage() {
                 <TableHead className="w-[50px]"></TableHead>
                 <TableHead>Name</TableHead>
                 <TableHead>Location</TableHead>
-                <TableHead>Assigned Products</TableHead>
+                <TableHead>Products</TableHead>
+                <TableHead className="text-center">Total Stock</TableHead>
+                <TableHead className="text-center">Delivered</TableHead>
+                <TableHead className="text-center">Remaining</TableHead>
                 <TableHead className="text-right">Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {filteredStands.map((stand) => (
-                <React.Fragment key={stand.id}>
-                  <TableRow>
-                    <TableCell>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => setExpandedStandId(expandedStandId === stand.id ? null : stand.id)}
-                      >
-                        <ChevronDown
-                          className={cn("h-4 w-4 transition-transform", expandedStandId === stand.id && "rotate-180")}
-                        />
-                      </Button>
-                    </TableCell>
-                    <TableCell className="font-medium">{stand.name}</TableCell>
-                    <TableCell>{stand.location}</TableCell>
-                    <TableCell>
-                      {stand.stock.length > 0 ? (
-                        <Badge variant="secondary">{stand.stock.length} products</Badge>
-                      ) : (
-                        <span className="text-muted-foreground text-sm">No products</span>
-                      )}
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <Button aria-haspopup="true" size="icon" variant="ghost">
-                            <MoreHorizontal className="h-4 w-4" />
-                            <span className="sr-only">Toggle menu</span>
-                          </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end">
-                          <DropdownMenuLabel>Actions</DropdownMenuLabel>
-                          <DropdownMenuItem onClick={() => setViewingQrStand(stand)}>
-                            <QrCodeIcon className="mr-2 h-4 w-4" /> View QR Code
-                          </DropdownMenuItem>
-                          <DropdownMenuItem onClick={() => handleEditStand(stand)}>
-                            <Edit className="mr-2 h-4 w-4" /> Edit Stand
-                          </DropdownMenuItem>
-                          <DropdownMenuSeparator />
-                          <DropdownMenuItem onClick={() => handleDeleteStand(stand.id)} className="text-red-600">
-                            <Trash2 className="mr-2 h-4 w-4" /> Delete Stand
-                          </DropdownMenuItem>
-                        </DropdownMenuContent>
-                      </DropdownMenu>
-                    </TableCell>
-                  </TableRow>
-                  {expandedStandId === stand.id && (
-                    <TableRow className="bg-muted/50 hover:bg-muted/50">
-                      <TableCell colSpan={5} className="p-0">
-                        <div className="p-4 grid grid-cols-1 md:grid-cols-3 gap-6">
-                          <div className="md:col-span-1">
-                            <Image
-                              src={stand.imageUrl || "/placeholder.svg?width=400&height=200&query=stand"}
-                              alt={`Image of ${stand.name}`}
-                              width={400}
-                              height={200}
-                              className="rounded-lg object-cover aspect-video"
-                            />
-                          </div>
-                          <div className="md:col-span-2 space-y-4">
-                            <div>
-                              <h4 className="font-semibold mb-1">Description</h4>
-                              <p className="text-sm text-muted-foreground">{stand.description || "No description."}</p>
-                            </div>
-                            <div className="grid grid-cols-2 gap-4">
-                              <div>
-                                <h4 className="font-semibold mb-1 flex items-center">
-                                  <Clock className="mr-2 h-4 w-4" /> Operating Hours
-                                </h4>
-                                <p className="text-sm text-muted-foreground">
-                                  {stand.operatingHours || "Not specified"}
-                                </p>
-                              </div>
-                              <div>
-                                <h4 className="font-semibold mb-1 flex items-center">
-                                  <User className="mr-2 h-4 w-4" /> Contact Person
-                                </h4>
-                                <p className="text-sm text-muted-foreground">
-                                  {stand.contactPerson || "Not specified"}
-                                </p>
-                              </div>
-                              <div>
-                                <h4 className="font-semibold mb-1 flex items-center">
-                                  <Phone className="mr-2 h-4 w-4" /> Contact Phone
-                                </h4>
-                                <p className="text-sm text-muted-foreground">{stand.contactPhone || "Not specified"}</p>
-                              </div>
-                            </div>
-                            <div>
-                              <h4 className="font-semibold mb-2">Stock Details</h4>
-                              <div className="space-y-1">
-                                {stand.stock.map((s) => (
-                                  <div key={s.productId} className="flex justify-between text-sm">
-                                    <span>{s.productName}</span>
-                                    <span className="font-mono">
-                                      {s.assignedQuantity - s.deliveredQuantity}/{s.assignedQuantity}
-                                    </span>
-                                  </div>
-                                ))}
-                                {stand.stock.length === 0 && (
-                                  <p className="text-sm text-muted-foreground">No products assigned.</p>
-                                )}
-                              </div>
-                            </div>
-                          </div>
-                        </div>
+              {filteredStands.map((stand) => {
+                const totalStock = stand.stock.reduce((sum, s) => sum + s.totalAssigned, 0)
+                const totalDelivered = stand.stock.reduce((sum, s) => sum + s.totalDelivered, 0)
+                const totalRemaining = stand.stock.reduce((sum, s) => sum + s.totalRemaining, 0)
+
+                return (
+                  <React.Fragment key={stand.id}>
+                    <TableRow>
+                      <TableCell>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => setExpandedStandId(expandedStandId === stand.id ? null : stand.id)}
+                        >
+                          <ChevronDown
+                            className={cn("h-4 w-4 transition-transform", expandedStandId === stand.id && "rotate-180")}
+                          />
+                        </Button>
+                      </TableCell>
+                      <TableCell className="font-medium">{stand.name}</TableCell>
+                      <TableCell>{stand.location}</TableCell>
+                      <TableCell>
+                        {stand.stock.length > 0 ? (
+                          <Badge variant="secondary">{stand.stock.length} products</Badge>
+                        ) : (
+                          <span className="text-muted-foreground text-sm">No products</span>
+                        )}
+                      </TableCell>
+                      <TableCell className="text-center font-mono">{totalStock}</TableCell>
+                      <TableCell className="text-center font-mono text-blue-600">{totalDelivered}</TableCell>
+                      <TableCell className="text-center font-mono text-green-600">{totalRemaining}</TableCell>
+                      <TableCell className="text-right">
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <Button aria-haspopup="true" size="icon" variant="ghost">
+                              <MoreHorizontal className="h-4 w-4" />
+                              <span className="sr-only">Toggle menu</span>
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                            <DropdownMenuLabel>Actions</DropdownMenuLabel>
+                            <DropdownMenuItem onClick={() => setViewingStockStand(stand)}>
+                              <Package className="mr-2 h-4 w-4" /> View Detailed Stock
+                            </DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => setViewingQrStand(stand)}>
+                              <QrCodeIcon className="mr-2 h-4 w-4" /> View QR Code
+                            </DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => handleEditStand(stand)}>
+                              <Edit className="mr-2 h-4 w-4" /> Edit Stand
+                            </DropdownMenuItem>
+                            <DropdownMenuSeparator />
+                            <DropdownMenuItem onClick={() => handleDeleteStand(stand.id)} className="text-red-600">
+                              <Trash2 className="mr-2 h-4 w-4" /> Delete Stand
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
                       </TableCell>
                     </TableRow>
-                  )}
-                </React.Fragment>
-              ))}
+                    {expandedStandId === stand.id && (
+                      <TableRow className="bg-muted/50 hover:bg-muted/50">
+                        <TableCell colSpan={8} className="p-0">
+                          <div className="p-4 grid grid-cols-1 md:grid-cols-3 gap-6">
+                            <div className="md:col-span-1">
+                              <Image
+                                src={stand.imageUrl || "/placeholder.svg?width=400&height=200&query=stand"}
+                                alt={`Image of ${stand.name}`}
+                                width={400}
+                                height={200}
+                                className="rounded-lg object-cover aspect-video"
+                              />
+                            </div>
+                            <div className="md:col-span-2 space-y-4">
+                              <div>
+                                <h4 className="font-semibold mb-1">Description</h4>
+                                <p className="text-sm text-muted-foreground">
+                                  {stand.description || "No description."}
+                                </p>
+                              </div>
+                              <div className="grid grid-cols-2 gap-4">
+                                <div>
+                                  <h4 className="font-semibold mb-1 flex items-center">
+                                    <Clock className="mr-2 h-4 w-4" /> Operating Hours
+                                  </h4>
+                                  <p className="text-sm text-muted-foreground">
+                                    {stand.operatingHours || "Not specified"}
+                                  </p>
+                                </div>
+                                <div>
+                                  <h4 className="font-semibold mb-1 flex items-center">
+                                    <User className="mr-2 h-4 w-4" /> Contact Person
+                                  </h4>
+                                  <p className="text-sm text-muted-foreground">
+                                    {stand.contactPerson || "Not specified"}
+                                  </p>
+                                </div>
+                                <div>
+                                  <h4 className="font-semibold mb-1 flex items-center">
+                                    <Phone className="mr-2 h-4 w-4" /> Contact Phone
+                                  </h4>
+                                  <p className="text-sm text-muted-foreground">
+                                    {stand.contactPhone || "Not specified"}
+                                  </p>
+                                </div>
+                              </div>
+                              <div>
+                                <h4 className="font-semibold mb-2">Quick Stock Overview</h4>
+                                <div className="space-y-2">
+                                  {stand.stock.slice(0, 3).map((s) => (
+                                    <div key={s.productId} className="flex justify-between items-center text-sm">
+                                      <span className="truncate">{s.productName}</span>
+                                      <div className="flex items-center gap-2">
+                                        <Badge variant="outline" className="text-xs">
+                                          {s.totalRemaining}/{s.totalAssigned}
+                                        </Badge>
+                                        <Progress
+                                          value={(s.totalDelivered / s.totalAssigned) * 100}
+                                          className="w-16 h-2"
+                                        />
+                                      </div>
+                                    </div>
+                                  ))}
+                                  {stand.stock.length > 3 && (
+                                    <p className="text-xs text-muted-foreground">
+                                      +{stand.stock.length - 3} more products
+                                    </p>
+                                  )}
+                                  {stand.stock.length === 0 && (
+                                    <p className="text-sm text-muted-foreground">No products assigned.</p>
+                                  )}
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    )}
+                  </React.Fragment>
+                )
+              })}
               {filteredStands.length === 0 && (
                 <TableRow>
-                  <TableCell colSpan={5} className="text-center py-8 text-muted-foreground">
+                  <TableCell colSpan={8} className="text-center py-8 text-muted-foreground">
                     No stands found.
                   </TableCell>
                 </TableRow>
@@ -300,6 +346,163 @@ export default function StandsPage() {
   )
 }
 
+// Componente para mostrar el stock detallado
+interface StockDetailDialogProps {
+  stand: Stand | null
+  isOpen: boolean
+  onOpenChange: (open: boolean) => void
+}
+
+function StockDetailDialog({ stand, isOpen, onOpenChange }: StockDetailDialogProps) {
+  if (!stand) return null
+
+  const totalStock = stand.stock.reduce((sum, s) => sum + s.totalAssigned, 0)
+  const totalDelivered = stand.stock.reduce((sum, s) => sum + s.totalDelivered, 0)
+  const totalRemaining = stand.stock.reduce((sum, s) => sum + s.totalRemaining, 0)
+
+  return (
+    <Dialog open={isOpen} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-4xl">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <Package className="h-5 w-5" />
+            Stock Detallado: {stand.name}
+          </DialogTitle>
+          <DialogDescription>Vista completa del inventario por producto y talla en este stand.</DialogDescription>
+        </DialogHeader>
+
+        <div className="grid grid-cols-1 lg:grid-cols-4 gap-4 mb-6">
+          <Card>
+            <CardContent className="p-4">
+              <div className="flex items-center gap-2">
+                <Package className="h-4 w-4 text-blue-500" />
+                <div>
+                  <p className="text-sm text-muted-foreground">Total Asignado</p>
+                  <p className="text-2xl font-bold">{totalStock}</p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardContent className="p-4">
+              <div className="flex items-center gap-2">
+                <TrendingDown className="h-4 w-4 text-red-500" />
+                <div>
+                  <p className="text-sm text-muted-foreground">Entregado</p>
+                  <p className="text-2xl font-bold">{totalDelivered}</p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardContent className="p-4">
+              <div className="flex items-center gap-2">
+                <TrendingUp className="h-4 w-4 text-green-500" />
+                <div>
+                  <p className="text-sm text-muted-foreground">Disponible</p>
+                  <p className="text-2xl font-bold">{totalRemaining}</p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardContent className="p-4">
+              <div className="flex items-center gap-2">
+                <Minus className="h-4 w-4 text-muted-foreground" />
+                <div>
+                  <p className="text-sm text-muted-foreground">% Entregado</p>
+                  <p className="text-2xl font-bold">
+                    {totalStock > 0 ? Math.round((totalDelivered / totalStock) * 100) : 0}%
+                  </p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+
+        <ScrollArea className="h-[400px]">
+          <div className="space-y-4">
+            {stand.stock.map((stockItem) => (
+              <Card key={stockItem.productId}>
+                <CardHeader className="pb-3">
+                  <div className="flex items-center gap-4">
+                    <Image
+                      src={stockItem.productImageUrl || "/placeholder.svg?width=64&height=64"}
+                      alt={stockItem.productName}
+                      width={64}
+                      height={64}
+                      className="rounded-md object-cover"
+                    />
+                    <div className="flex-1">
+                      <CardTitle className="text-lg">{stockItem.productName}</CardTitle>
+                      <CardDescription>{stockItem.productCategory}</CardDescription>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-sm text-muted-foreground">Total</p>
+                      <p className="text-lg font-bold">
+                        {stockItem.totalRemaining}/{stockItem.totalAssigned}
+                      </p>
+                    </div>
+                  </div>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-3">
+                    <div className="flex justify-between text-sm">
+                      <span>Progreso de Entrega</span>
+                      <span>{Math.round((stockItem.totalDelivered / stockItem.totalAssigned) * 100)}%</span>
+                    </div>
+                    <Progress value={(stockItem.totalDelivered / stockItem.totalAssigned) * 100} className="h-2" />
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 mt-4">
+                      {stockItem.variants.map((variant) => (
+                        <div key={variant.size} className="border rounded-lg p-3">
+                          <div className="flex justify-between items-center mb-2">
+                            <Badge variant="outline" className="text-xs">
+                              {variant.size}
+                            </Badge>
+                            <span className="text-sm font-mono">
+                              {variant.remainingQuantity}/{variant.assignedQuantity}
+                            </span>
+                          </div>
+                          <div className="space-y-1">
+                            <div className="flex justify-between text-xs">
+                              <span className="text-muted-foreground">Asignado:</span>
+                              <span>{variant.assignedQuantity}</span>
+                            </div>
+                            <div className="flex justify-between text-xs">
+                              <span className="text-muted-foreground">Entregado:</span>
+                              <span className="text-red-600">{variant.deliveredQuantity}</span>
+                            </div>
+                            <div className="flex justify-between text-xs">
+                              <span className="text-muted-foreground">Disponible:</span>
+                              <span className="text-green-600 font-medium">{variant.remainingQuantity}</span>
+                            </div>
+                            <Progress
+                              value={(variant.deliveredQuantity / variant.assignedQuantity) * 100}
+                              className="h-1 mt-2"
+                            />
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        </ScrollArea>
+
+        <DialogFooter>
+          <DialogClose asChild>
+            <Button variant="outline">Cerrar</Button>
+          </DialogClose>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
+// Los otros componentes (StandFormDialog, QrCodeDialog) se mantienen igual...
 interface StandFormDialogProps {
   isOpen: boolean
   onOpenChange: (isOpen: boolean) => void
@@ -341,16 +544,6 @@ function StandFormDialog({ isOpen, onOpenChange, onSubmit, stand, allProducts, o
     }
   }, [stand, isOpen])
 
-  const handleStockChange = (productId: string, productName: string, quantity: number) => {
-    setAssignedStock((prevStock) => {
-      const existing = prevStock.find((s) => s.productId === productId)
-      if (existing) {
-        return prevStock.map((s) => (s.productId === productId ? { ...s, assignedQuantity: quantity, productName } : s))
-      }
-      return [...prevStock, { productId, productName, assignedQuantity: quantity, deliveredQuantity: 0 }]
-    }).filter((s) => s.assignedQuantity > 0)
-  }
-
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
     onSubmit({
@@ -378,9 +571,7 @@ function StandFormDialog({ isOpen, onOpenChange, onSubmit, stand, allProducts, o
         <DialogHeader>
           <DialogTitle>{stand ? "Edit Stand" : "Add New Stand"}</DialogTitle>
           <DialogDescription>
-            {stand
-              ? "Update the details of this stand."
-              : "Fill in the details for the new stand and assign product stock."}
+            {stand ? "Update the details of this stand." : "Fill in the details for the new stand."}
           </DialogDescription>
         </DialogHeader>
         <form onSubmit={handleSubmit}>
@@ -442,34 +633,10 @@ function StandFormDialog({ isOpen, onOpenChange, onSubmit, stand, allProducts, o
               </div>
             </div>
             <div className="space-y-2">
-              <Label className="font-medium">Assign Product Stock</Label>
-              <ScrollArea className="h-[420px] mt-2 border rounded-md p-2">
-                {allProducts.map((product) => {
-                  const currentAssignment = assignedStock.find((s) => s.productId === product.id)
-                  const productMaxAssignable =
-                    product.totalQuantity - product.assignedToStands + (currentAssignment?.assignedQuantity || 0)
-
-                  return (
-                    <div key={product.id} className="grid grid-cols-3 items-center gap-2 mb-2">
-                      <Label htmlFor={`stock-${product.id}`} className="col-span-1 truncate" title={product.name}>
-                        {product.name}
-                      </Label>
-                      <Input
-                        id={`stock-${product.id}`}
-                        type="number"
-                        min="0"
-                        max={productMaxAssignable}
-                        value={currentAssignment?.assignedQuantity || 0}
-                        onChange={(e) => handleStockChange(product.id, product.name, Number.parseInt(e.target.value))}
-                        className="col-span-2"
-                      />
-                      <small className="col-span-3 text-xs text-muted-foreground text-right -mt-1">
-                        Available to assign: {productMaxAssignable}
-                      </small>
-                    </div>
-                  )
-                })}
-              </ScrollArea>
+              <Label className="font-medium">Stock Assignment (Simplified)</Label>
+              <p className="text-sm text-muted-foreground">
+                Use the Product Management section for detailed stock assignment.
+              </p>
             </div>
           </div>
           <DialogFooter>

@@ -6,7 +6,8 @@ export type ProductVariant = {
   product_id?: string // Opcional, se asignará al crear
   size: string // S, M, L, XL, XXL
   quantity: number
-  // Podrías añadir campos como sku_variant, price_variant si fueran necesarios
+  created_at?: string
+  updated_at?: string
 }
 
 export type Product = {
@@ -30,12 +31,24 @@ export type NewProductData = {
   low_stock_threshold: number | null
 }
 
-// Tipos existentes (Stand, Sale, etc. se mantienen igual por ahora)
+// Stock detallado por talla en un stand
+export type StandStockVariant = {
+  size: string
+  assignedQuantity: number
+  deliveredQuantity: number
+  remainingQuantity: number
+}
+
+// Stock de producto en un stand con detalles por talla
 export type StandStock = {
   productId: string
   productName: string
-  assignedQuantity: number
-  deliveredQuantity: number
+  productCategory: string | null
+  productImageUrl: string | null
+  variants: StandStockVariant[]
+  totalAssigned: number
+  totalDelivered: number
+  totalRemaining: number
 }
 
 export type Stand = {

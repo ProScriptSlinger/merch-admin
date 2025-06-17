@@ -6,6 +6,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge"
 import { Trash2, Users } from "lucide-react"
 import type { Product } from "@/lib/types"
+import { deleteProduct } from "./actions"
 import { useToast } from "@/hooks/use-toast"
 import { getTotalAssignedStock, getTotalRemainingStock } from "@/lib/data"
 
@@ -21,8 +22,15 @@ export default function ProductsTable({ products, onAssignStock }: ProductsTable
     if (!confirm(`¿Estás seguro de que quieres eliminar "${productName}"? Esta acción no se puede deshacer.`)) {
       return
     }
-    // Aquí iría la lógica de eliminación
-    toast({ title: "Éxito", description: `Producto "${productName}" eliminado correctamente.` })
+
+    const result = await deleteProduct(productId)
+    if (result.success) {
+      toast({ title: "Éxito", description: result.message })
+      // La revalidación en la acción debería actualizar la lista
+      window.location.reload() // Forzar recarga para ver cambios
+    } else {
+      toast({ title: "Error", description: result.message, variant: "destructive" })
+    }
   }
 
   if (!products || products.length === 0) {

@@ -11,11 +11,11 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog"
+import { getProducts } from "./actions"
 import ProductForm from "./product-form"
 import ProductsTable from "./products-table"
 import StockAssignmentDialog from "./stock-assignment-dialog"
 import type { Product } from "@/lib/types"
-import { mockProducts } from "@/lib/data"
 import { PlusCircle } from "lucide-react"
 
 function LoadingSpinner() {
@@ -36,9 +36,8 @@ export default function ProductsPage() {
   const fetchProducts = async () => {
     setIsLoading(true)
     try {
-      // Simular carga de datos
-      await new Promise((resolve) => setTimeout(resolve, 500))
-      setProducts(mockProducts)
+      const fetchedProducts = await getProducts()
+      setProducts(fetchedProducts)
     } catch (error) {
       console.error("Error al cargar productos:", error)
     } finally {
@@ -61,7 +60,7 @@ export default function ProductsPage() {
 
   const handleAssignmentSuccess = () => {
     setSelectedProductForAssignment(null)
-    fetchProducts() // Recargar para mostrar cambios
+    fetchProducts()
   }
 
   return (

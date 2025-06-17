@@ -232,9 +232,42 @@ export const mockStands: Stand[] = [
     contactPhone: "123-456-7890",
     qrCodeValue: "STAND_QR_MAIN_ENTRANCE",
     stock: [
-      { productId: "prod_1", productName: "Camiseta Evento 2024", assignedQuantity: 30, deliveredQuantity: 5 },
-      { productId: "prod_3", productName: "Gorra Snapback", assignedQuantity: 20, deliveredQuantity: 3 },
-      { productId: "prod_4", productName: "Botella de Agua", assignedQuantity: 40, deliveredQuantity: 10 },
+      {
+        productId: "prod_1",
+        productName: "Camiseta Evento 2024",
+        productCategory: "Apparel",
+        productImageUrl: "/placeholder.svg?width=400&height=400",
+        variants: [
+          { size: "S", assignedQuantity: 5, deliveredQuantity: 1, remainingQuantity: 4 },
+          { size: "M", assignedQuantity: 8, deliveredQuantity: 2, remainingQuantity: 6 },
+          { size: "L", assignedQuantity: 7, deliveredQuantity: 1, remainingQuantity: 6 },
+          { size: "XL", assignedQuantity: 5, deliveredQuantity: 1, remainingQuantity: 4 },
+          { size: "XXL", assignedQuantity: 2, deliveredQuantity: 0, remainingQuantity: 2 },
+        ],
+        totalAssigned: 27,
+        totalDelivered: 5,
+        totalRemaining: 22,
+      },
+      {
+        productId: "prod_3",
+        productName: "Gorra Snapback",
+        productCategory: "Accessories",
+        productImageUrl: "/placeholder.svg?width=400&height=400",
+        variants: [{ size: "One Size", assignedQuantity: 20, deliveredQuantity: 3, remainingQuantity: 17 }],
+        totalAssigned: 20,
+        totalDelivered: 3,
+        totalRemaining: 17,
+      },
+      {
+        productId: "prod_4",
+        productName: "Botella de Agua",
+        productCategory: "Accessories",
+        productImageUrl: "/placeholder.svg?width=400&height=400",
+        variants: [{ size: "One Size", assignedQuantity: 40, deliveredQuantity: 10, remainingQuantity: 30 }],
+        totalAssigned: 40,
+        totalDelivered: 10,
+        totalRemaining: 30,
+      },
     ],
   },
   {
@@ -248,10 +281,61 @@ export const mockStands: Stand[] = [
     contactPhone: "098-765-4321",
     qrCodeValue: "STAND_QR_VIP_LOUNGE",
     stock: [
-      { productId: "prod_1", productName: "Camiseta Evento 2024", assignedQuantity: 25, deliveredQuantity: 8 },
-      { productId: "prod_2", productName: "Hoodie Oficial", assignedQuantity: 20, deliveredQuantity: 5 },
-      { productId: "prod_5", productName: "Tote Bag", assignedQuantity: 15, deliveredQuantity: 2 },
-      { productId: "prod_6", productName: "Sudadera Zip", assignedQuantity: 12, deliveredQuantity: 3 },
+      {
+        productId: "prod_1",
+        productName: "Camiseta Evento 2024",
+        productCategory: "Apparel",
+        productImageUrl: "/placeholder.svg?width=400&height=400",
+        variants: [
+          { size: "S", assignedQuantity: 4, deliveredQuantity: 2, remainingQuantity: 2 },
+          { size: "M", assignedQuantity: 6, deliveredQuantity: 3, remainingQuantity: 3 },
+          { size: "L", assignedQuantity: 5, deliveredQuantity: 2, remainingQuantity: 3 },
+          { size: "XL", assignedQuantity: 3, deliveredQuantity: 1, remainingQuantity: 2 },
+        ],
+        totalAssigned: 18,
+        totalDelivered: 8,
+        totalRemaining: 10,
+      },
+      {
+        productId: "prod_2",
+        productName: "Hoodie Oficial",
+        productCategory: "Apparel",
+        productImageUrl: "/placeholder.svg?width=400&height=400",
+        variants: [
+          { size: "S", assignedQuantity: 3, deliveredQuantity: 1, remainingQuantity: 2 },
+          { size: "M", assignedQuantity: 5, deliveredQuantity: 2, remainingQuantity: 3 },
+          { size: "L", assignedQuantity: 4, deliveredQuantity: 1, remainingQuantity: 3 },
+          { size: "XL", assignedQuantity: 3, deliveredQuantity: 1, remainingQuantity: 2 },
+        ],
+        totalAssigned: 15,
+        totalDelivered: 5,
+        totalRemaining: 10,
+      },
+      {
+        productId: "prod_5",
+        productName: "Tote Bag",
+        productCategory: "Accessories",
+        productImageUrl: "/placeholder.svg?width=400&height=400",
+        variants: [{ size: "One Size", assignedQuantity: 15, deliveredQuantity: 2, remainingQuantity: 13 }],
+        totalAssigned: 15,
+        totalDelivered: 2,
+        totalRemaining: 13,
+      },
+      {
+        productId: "prod_6",
+        productName: "Sudadera Zip",
+        productCategory: "Apparel",
+        productImageUrl: "/placeholder.svg?width=400&height=400",
+        variants: [
+          { size: "S", assignedQuantity: 2, deliveredQuantity: 1, remainingQuantity: 1 },
+          { size: "M", assignedQuantity: 3, deliveredQuantity: 1, remainingQuantity: 2 },
+          { size: "L", assignedQuantity: 3, deliveredQuantity: 1, remainingQuantity: 2 },
+          { size: "XL", assignedQuantity: 2, deliveredQuantity: 0, remainingQuantity: 2 },
+        ],
+        totalAssigned: 10,
+        totalDelivered: 3,
+        totalRemaining: 7,
+      },
     ],
   },
   {
@@ -265,9 +349,36 @@ export const mockStands: Stand[] = [
     contactPhone: "555-123-4567",
     qrCodeValue: "STAND_QR_FOOD_COURT",
     stock: [
-      { productId: "prod_3", productName: "Gorra Snapback", assignedQuantity: 15, deliveredQuantity: 4 },
-      { productId: "prod_4", productName: "Botella de Agua", assignedQuantity: 35, deliveredQuantity: 12 },
-      { productId: "prod_5", productName: "Tote Bag", assignedQuantity: 20, deliveredQuantity: 6 },
+      {
+        productId: "prod_3",
+        productName: "Gorra Snapback",
+        productCategory: "Accessories",
+        productImageUrl: "/placeholder.svg?width=400&height=400",
+        variants: [{ size: "One Size", assignedQuantity: 15, deliveredQuantity: 4, remainingQuantity: 11 }],
+        totalAssigned: 15,
+        totalDelivered: 4,
+        totalRemaining: 11,
+      },
+      {
+        productId: "prod_4",
+        productName: "Botella de Agua",
+        productCategory: "Accessories",
+        productImageUrl: "/placeholder.svg?width=400&height=400",
+        variants: [{ size: "One Size", assignedQuantity: 35, deliveredQuantity: 12, remainingQuantity: 23 }],
+        totalAssigned: 35,
+        totalDelivered: 12,
+        totalRemaining: 23,
+      },
+      {
+        productId: "prod_5",
+        productName: "Tote Bag",
+        productCategory: "Accessories",
+        productImageUrl: "/placeholder.svg?width=400&height=400",
+        variants: [{ size: "One Size", assignedQuantity: 20, deliveredQuantity: 6, remainingQuantity: 14 }],
+        totalAssigned: 20,
+        totalDelivered: 6,
+        totalRemaining: 14,
+      },
     ],
   },
 ]
@@ -342,13 +453,13 @@ export const mockDeliveryLogs: DeliveryLog[] = [
 // Helper functions
 export const getRemainingStockAtStand = (stand: Stand, productId: string): number => {
   const productStock = stand.stock.find((s) => s.productId === productId)
-  return productStock ? productStock.assignedQuantity - productStock.deliveredQuantity : 0
+  return productStock ? productStock.totalRemaining : 0
 }
 
 export const getTotalAssignedStock = (product: Product): number => {
   return mockStands.reduce((total, stand) => {
     const standStock = stand.stock.find((s) => s.productId === product.product_id)
-    return total + (standStock ? standStock.assignedQuantity : 0)
+    return total + (standStock ? standStock.totalAssigned : 0)
   }, 0)
 }
 
