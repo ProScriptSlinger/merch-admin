@@ -39,7 +39,7 @@ import {
 } from "@/components/ui/dialog"
 import { Label } from "@/components/ui/label"
 import { useToast } from "@/hooks/use-toast"
-import { mockStands, mockProducts } from "@/lib/data"
+import { mockStands, mockProducts, getTotalAssignedStock } from "@/lib/data"
 import type { Stand, StandStock, Product } from "@/lib/types"
 import { Badge } from "@/components/ui/badge"
 import { ScrollArea } from "@/components/ui/scroll-area"
@@ -446,8 +446,12 @@ function StandFormDialog({ isOpen, onOpenChange, onSubmit, stand, allProducts, o
               <ScrollArea className="h-[420px] mt-2 border rounded-md p-2">
                 {allProducts.map((product) => {
                   const currentAssignment = assignedStock.find((s) => s.productId === product.id)
-                  const productMaxAssignable =
-                    product.totalQuantity - product.assignedToStands + (currentAssignment?.assignedQuantity || 0)
+                  const productMaxAssignable = Math.max(
+                    0,
+                    (product.total_quantity || 0) -
+                      getTotalAssignedStock(product) +
+                      (currentAssignment?.assignedQuantity || 0),
+                  )
 
                   return (
                     <div key={product.id} className="grid grid-cols-3 items-center gap-2 mb-2">

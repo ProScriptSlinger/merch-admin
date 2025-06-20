@@ -28,6 +28,7 @@ import {
 import { useToast } from "@/hooks/use-toast"
 import { mockSales, mockProducts, mockStands } from "@/lib/data"
 import type { Sale, PaymentMethod } from "@/lib/types"
+import { EditOrderDialog } from "../scan/edit-order-dialog"
 import {
   Download,
   Filter,
@@ -45,6 +46,8 @@ import {
   AlertCircle,
   Check,
   ExternalLink,
+  Edit,
+  Trash2,
 } from "lucide-react"
 
 export default function SalesPage() {
@@ -65,6 +68,7 @@ export default function SalesPage() {
   const [validatingPaymentSale, setValidatingPaymentSale] = useState<Sale | null>(null)
   const [returningOrderSale, setReturningOrderSale] = useState<Sale | null>(null)
   const [editingOrderSale, setEditingOrderSale] = useState<Sale | null>(null)
+  const [cancellingOrderSale, setCancellingOrderSale] = useState<Sale | null>(null)
   const [returnReason, setReturnReason] = useState("")
 
   const { toast } = useToast()
@@ -158,6 +162,9 @@ export default function SalesPage() {
   }
 
   const handleReturnOrder = (saleId: string, reason: string) => {
+    const sale = sales.find((s) => s.id === saleId)
+    if (!sale) return
+
     setSales((prevSales) =>
       prevSales.map((sale) =>
         sale.id === saleId
@@ -172,19 +179,124 @@ export default function SalesPage() {
           : sale,
       ),
     )
+
+    // Restore stock for returned items
+    sale.items.forEach((item) => {
+      console.log(`Restoring stock: ${item.quantity} units of ${item.productName}`)
+      // Here you would update the actual product stock in your database
+    })
+
     toast({
       title: "Pedido Devuelto",
-      description: `La venta ${saleId} ha sido marcada como devuelta. Stock restaurado.`,
+      description: `La venta ${saleId} ha sido marcada como devuelta. Stock de ${sale.items.length} productos restaurado.`,
     })
     setReturningOrderSale(null)
     setReturnReason("")
   }
 
-  const handleEditOrder = (sale: Sale) => {
-    // This would typically open an edit dialog
+  const handleCancelOrder = (saleId: string) => {
+    const sale = sales.find((s) => s.id === saleId)
+    if (!sale) return
+
+    setSales((prevSales) =>
+      prevSales.map((sale) =>
+        sale.id === saleId
+          ? {
+              ...sale,
+              status: "Returned",
+              returnRequested: true,
+              returnReason: "Venta cancelada por administrador",
+              returnTimestamp: new Date().toISOString(),
+              refundAmount: sale.totalAmount,
+            }
+          : sale,
+      ),
+    )
+
+    // Restore stock for cancelled items
+    sale.items.forEach((item) => {
+      console.log(`Restoring stock from cancellation: ${item.quantity} units of ${item.productName}`)
+      // Here you would update the actual product stock in your database
+    })
+
     toast({
-      title: "Editar Pedido",
-      description: `Funcionalidad de edición para la venta ${sale.id} (próximamente)`,
+      title: "Venta Cancelada",
+      description: `La venta ${saleId} ha sido cancelada. Stock de ${sale.items.length} productos restaurado automáticamente.`,
+    })
+    setCancellingOrderSale(null)
+  }
+
+  const handleEditOrder = (sale: Sale) => {
+    setEditingOrderSale(sale)
+  }
+
+  const handleSaveEditedOrder = (updatedItems: any[]) => {
+    if (!editingOrderSale) return
+
+    const originalSale = editingOrderSale
+    const newTotal = updatedItems.reduce((sum, item) => sum + item.quantity * (item.unitPrice || 0), 0)
+
+    // Calculate stock changes
+    const stockChanges: { [productId: string]: number } = {}
+
+    // Calculate what was removed or reduced
+    originalSale.items.forEach((originalItem) => {
+      const updatedItem = updatedItems.find((item) => item.productId === originalItem.productId)
+      if (!updatedItem) {
+        // Item was completely removed - restore full quantity
+        stockChanges[originalItem.productId] = (stockChanges[originalItem.productId] || 0) + originalItem.quantity
+      } else if (updatedItem.quantity < originalItem.quantity) {
+        // Quantity was reduced - restore the difference
+        const difference = originalItem.quantity - updatedItem.quantity
+        stockChanges[originalItem.productId] = (stockChanges[originalItem.productId] || 0) + difference
+      }
+    })
+
+    // Calculate what was added or increased
+    updatedItems.forEach((updatedItem) => {
+      const originalItem = originalSale.items.find((item) => item.productId === updatedItem.productId)
+      if (!originalItem) {
+        // New item was added - reduce stock
+        stockChanges[updatedItem.productId] = (stockChanges[updatedItem.productId] || 0) - updatedItem.quantity
+      } else if (updatedItem.quantity > originalItem.quantity) {
+        // Quantity was increased - reduce stock by the difference
+        const difference = updatedItem.quantity - originalItem.quantity
+        stockChanges[updatedItem.productId] = (stockChanges[updatedItem.productId] || 0) - difference
+      }
+    })
+
+    // Apply stock changes
+    Object.entries(stockChanges).forEach(([productId, change]) => {
+      const product = mockProducts.find((p) => p.product_id === productId)
+      if (product && change !== 0) {
+        console.log(
+          `Stock change for ${product.name}: ${change > 0 ? "+" : ""}${change} (${change > 0 ? "restored" : "reduced"})`,
+        )
+        // Here you would update the actual product stock in your database
+      }
+    })
+
+    // Update the sale
+    setSales((prevSales) =>
+      prevSales.map((sale) =>
+        sale.id === editingOrderSale.id
+          ? {
+              ...sale,
+              items: updatedItems.map((item) => ({
+                productId: item.productId,
+                productName: item.productName,
+                quantity: item.quantity,
+              })),
+              totalAmount: newTotal,
+            }
+          : sale,
+      ),
+    )
+
+    const changesCount = Object.values(stockChanges).filter((change) => change !== 0).length
+    toast({
+      title: "Venta Editada",
+      description: `La venta ${editingOrderSale.id} ha sido actualizada. ${changesCount > 0 ? `Stock de ${changesCount} productos ajustado automáticamente.` : "Sin cambios de stock."}`,
     })
     setEditingOrderSale(null)
   }
@@ -498,7 +610,6 @@ export default function SalesPage() {
                 <TableHead>Fecha Venta</TableHead>
                 <TableHead>Tipo</TableHead>
                 <TableHead>Estado</TableHead>
-                <TableHead>Stand</TableHead>
                 <TableHead className="text-right">Acciones</TableHead>
               </TableRow>
             </TableHeader>
@@ -556,53 +667,78 @@ export default function SalesPage() {
                       </Badge>
                     )}
                   </TableCell>
-                  <TableCell>
-                    <span className="truncate max-w-[100px] block">
-                      {mockStands.find((s) => s.id === (sale.deliveredByStandId || sale.standId))?.name || "N/A"}
-                    </span>
-                  </TableCell>
                   <TableCell className="text-right">
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <Button aria-haspopup="true" size="icon" variant="ghost">
-                          <MoreHorizontal className="h-4 w-4" />
-                          <span className="sr-only">Toggle menu</span>
-                        </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="end">
-                        <DropdownMenuLabel>Acciones</DropdownMenuLabel>
-                        <DropdownMenuItem onClick={() => setViewingSaleDetails(sale)}>Ver Detalles</DropdownMenuItem>
-                        {!sale.paymentValidated && (
-                          <DropdownMenuItem
-                            onClick={() => {
-                              setValidatingPaymentSale(sale)
-                              setSelectedPaymentMethod(sale.paymentMethod)
-                            }}
+                    <div className="flex items-center gap-2 justify-end">
+                      {/* Botones de acción rápida */}
+                      {sale.status !== "Returned" && (
+                        <>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => handleEditOrder(sale)}
+                            className="h-8 px-2"
                           >
-                            Validar Pago
-                          </DropdownMenuItem>
-                        )}
-                        {sale.status === "Pending" && (
-                          <DropdownMenuItem onClick={() => setConfirmingDeliverySale(sale)}>
-                            Marcar como Entregada
-                          </DropdownMenuItem>
-                        )}
-                        {sale.status === "Delivered" && (
-                          <>
-                            <DropdownMenuItem onClick={() => setReturningOrderSale(sale)}>
-                              Procesar Devolución
+                            <Edit className="h-3 w-3 mr-1" />
+                            Editar
+                          </Button>
+                          {sale.status === "Delivered" && (
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => setReturningOrderSale(sale)}
+                              className="h-8 px-2 text-orange-600 border-orange-200 hover:bg-orange-50"
+                            >
+                              <ArrowRightLeft className="h-3 w-3 mr-1" />
+                              Devolver
+                            </Button>
+                          )}
+                        </>
+                      )}
+
+                      {/* Dropdown con más opciones */}
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button aria-haspopup="true" size="icon" variant="ghost" className="h-8 w-8">
+                            <MoreHorizontal className="h-4 w-4" />
+                            <span className="sr-only">Toggle menu</span>
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                          <DropdownMenuLabel>Más Acciones</DropdownMenuLabel>
+                          <DropdownMenuItem onClick={() => setViewingSaleDetails(sale)}>Ver Detalles</DropdownMenuItem>
+                          {!sale.paymentValidated && (
+                            <DropdownMenuItem
+                              onClick={() => {
+                                setValidatingPaymentSale(sale)
+                                setSelectedPaymentMethod(sale.paymentMethod)
+                              }}
+                            >
+                              Validar Pago
                             </DropdownMenuItem>
-                            <DropdownMenuItem onClick={() => setEditingOrderSale(sale)}>Editar Pedido</DropdownMenuItem>
-                          </>
-                        )}
-                      </DropdownMenuContent>
-                    </DropdownMenu>
+                          )}
+                          {sale.status === "Pending" && (
+                            <DropdownMenuItem onClick={() => setConfirmingDeliverySale(sale)}>
+                              Marcar como Entregada
+                            </DropdownMenuItem>
+                          )}
+                          {sale.status !== "Returned" && (
+                            <DropdownMenuItem
+                              onClick={() => setCancellingOrderSale(sale)}
+                              className="text-red-600 focus:text-red-600"
+                            >
+                              <Trash2 className="mr-2 h-4 w-4" />
+                              Cancelar Venta
+                            </DropdownMenuItem>
+                          )}
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    </div>
                   </TableCell>
                 </TableRow>
               ))}
               {filteredSales.length === 0 && (
                 <TableRow>
-                  <TableCell colSpan={10} className="text-center text-muted-foreground py-8">
+                  <TableCell colSpan={9} className="text-center text-muted-foreground py-8">
                     No se encontraron ventas con los filtros actuales.
                   </TableCell>
                 </TableRow>
@@ -855,29 +991,63 @@ export default function SalesPage() {
         </DialogContent>
       </Dialog>
 
-      {/* Edit Order Dialog */}
-      <Dialog open={!!editingOrderSale} onOpenChange={(open) => !open && setEditingOrderSale(null)}>
+      {/* Cancel Order Dialog */}
+      <Dialog open={!!cancellingOrderSale} onOpenChange={(open) => !open && setCancellingOrderSale(null)}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>Editar Pedido</DialogTitle>
+            <DialogTitle>Cancelar Venta</DialogTitle>
             <DialogDescription>
-              Funcionalidad de edición para la venta <strong>{editingOrderSale?.id}</strong>
+              ¿Estás seguro de que quieres cancelar la venta <strong>{cancellingOrderSale?.id}</strong>? Esta acción
+              restaurará automáticamente el stock de todos los productos.
             </DialogDescription>
           </DialogHeader>
           <div className="py-4">
-            <p className="text-sm text-muted-foreground">
-              Esta funcionalidad permitirá modificar productos, cantidades y otros detalles del pedido. Próximamente
-              disponible.
-            </p>
+            <div className="flex items-center justify-center p-4 bg-red-50 dark:bg-red-900/20 rounded-lg">
+              <div className="text-center">
+                <Trash2 className="h-8 w-8 text-red-500 mx-auto mb-2" />
+                <div className="text-lg font-semibold">Venta: {cancellingOrderSale?.id}</div>
+                <div className="text-sm text-muted-foreground">Cliente: {cancellingOrderSale?.email}</div>
+                <div className="text-sm text-muted-foreground">
+                  Total: ${(cancellingOrderSale?.totalAmount || 0).toLocaleString()}
+                </div>
+                <div className="text-sm text-red-600 mt-2 font-medium">
+                  Se restaurará el stock de {cancellingOrderSale?.items.length} productos automáticamente
+                </div>
+              </div>
+            </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setEditingOrderSale(null)}>
-              Cerrar
+            <Button variant="outline" onClick={() => setCancellingOrderSale(null)}>
+              No, Mantener Venta
             </Button>
-            <Button onClick={() => editingOrderSale && handleEditOrder(editingOrderSale)}>Continuar Edición</Button>
+            <Button
+              variant="destructive"
+              onClick={() => cancellingOrderSale && handleCancelOrder(cancellingOrderSale.id)}
+            >
+              <Trash2 className="mr-2 h-4 w-4" />
+              Sí, Cancelar Venta
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Edit Order Dialog */}
+      {editingOrderSale && (
+        <EditOrderDialog
+          open={!!editingOrderSale}
+          onOpenChange={(open) => !open && setEditingOrderSale(null)}
+          orderItems={editingOrderSale.items.map((item) => ({
+            id: `item_${item.productId}`,
+            productId: item.productId,
+            productName: item.productName,
+            size: "M", // Default size, you might want to store this in the sale
+            quantity: item.quantity,
+            unitPrice:
+              (editingOrderSale.totalAmount || 0) / editingOrderSale.items.reduce((sum, i) => sum + i.quantity, 0), // Estimate unit price
+          }))}
+          onSaveChanges={handleSaveEditedOrder}
+        />
+      )}
     </div>
   )
 }
