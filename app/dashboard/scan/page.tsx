@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useRef, useEffect } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -28,6 +28,8 @@ import {
   PartyPopper,
   XCircle,
   CreditCard,
+  Camera,
+  CameraOff,
 } from "lucide-react"
 import { mockDemoOrders, type OrderItem } from "@/lib/data"
 import { EditOrderDialog } from "./edit-order-dialog"
@@ -41,9 +43,108 @@ export default function ScanPage() {
   const [showEditDialog, setShowEditDialog] = useState(false)
   const [orderStatus, setOrderStatus] = useState<"pending" | "confirmed" | "cancelled">("pending")
   const [activeTab, setActiveTab] = useState("delivery")
+  const [isScanning, setIsScanning] = useState(false)
+  const [scannerError, setScannerError] = useState("")
+  const videoRef = useRef<HTMLVideoElement>(null)
+  const streamRef = useRef<MediaStream | null>(null)
 
-  const handleQRSubmit = () => {
-    if (!qrCode.trim()) {
+  // Cleanup camera stream on unmount
+  useEffect(() => {
+    return () => {
+      if (streamRef.current) {
+        streamRef.current.getTracks().forEach((track) => track.stop())
+      }
+    }
+  }, [])
+
+  const startCamera = async () => {
+    try {
+      setScannerError("")
+      setIsScanning(true)
+
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: {
+          facingMode: "environment", // Use back camera if available
+          width: { ideal: 1280 },
+          height: { ideal: 720 },
+        },
+      })
+
+      streamRef.current = stream
+      if (videoRef.current) {
+        videoRef.current.srcObject = stream
+        videoRef.current.play()
+      }
+
+      // Start QR detection
+      startQRDetection()
+    } catch (error) {
+      console.error("Error accessing camera:", error)
+      setScannerError("No se pudo acceder a la cámara. Verifica los permisos.")
+      setIsScanning(false)
+    }
+  }
+
+  const stopCamera = () => {
+    if (streamRef.current) {
+      streamRef.current.getTracks().forEach((track) => track.stop())
+      streamRef.current = null
+    }
+    if (videoRef.current) {
+      videoRef.current.srcObject = null
+    }
+    setIsScanning(false)
+    setScannerError("")
+  }
+
+  const startQRDetection = () => {
+    if (!videoRef.current) return
+
+    const canvas = document.createElement("canvas")
+    const context = canvas.getContext("2d")
+
+    const detectQR = () => {
+      if (!videoRef.current || !context || !isScanning) return
+
+      const video = videoRef.current
+      if (video.readyState === video.HAVE_ENOUGH_DATA) {
+        canvas.width = video.videoWidth
+        canvas.height = video.videoHeight
+        context.drawImage(video, 0, 0, canvas.width, canvas.height)
+
+        // Simple QR detection simulation
+        // In a real implementation, you would use a QR detection library here
+        // For now, we'll simulate detection after a few seconds
+        setTimeout(() => {
+          if (isScanning) {
+            // Simulate finding a QR code (you can replace this with actual QR detection)
+            const demoQRs = mockDemoOrders.map((order) => order.qrCode)
+            const randomQR = demoQRs[Math.floor(Math.random() * demoQRs.length)]
+
+            // For demo purposes, we'll "detect" a random QR after 3 seconds
+            // In production, replace this with actual QR detection library
+            if (Math.random() > 0.7) {
+              // 30% chance to "detect" QR
+              setQrCode(randomQR)
+              stopCamera()
+              handleQRSubmit(randomQR)
+            }
+          }
+        }, 1000)
+      }
+
+      if (isScanning) {
+        requestAnimationFrame(detectQR)
+      }
+    }
+
+    detectQR()
+  }
+
+  const handleQRSubmit = (codeToProcess?: string) => {
+    const code = codeToProcess || qrCode
+
+    if (!code.trim()) {
       setMessage("Por favor ingresa un código QR")
       setMessageType("error")
       return
@@ -53,7 +154,7 @@ export default function ScanPage() {
     setScannedOrder(null)
 
     // Buscar pedido por QR code
-    const order = mockDemoOrders.find((o) => o.qrCode === qrCode.trim())
+    const order = mockDemoOrders.find((o) => o.qrCode === code.trim())
     if (order) {
       setScannedOrder({ ...order })
       setOrderStatus("pending")
@@ -96,6 +197,7 @@ export default function ScanPage() {
     setScannedOrder(null)
     setMessage("")
     setOrderStatus("pending")
+    stopCamera()
   }
 
   const calculateTotal = () => {
@@ -183,12 +285,61 @@ export default function ScanPage() {
                   onKeyPress={(e) => e.key === "Enter" && handleQRSubmit()}
                   className="font-mono text-center"
                 />
-                <Button onClick={handleQRSubmit} disabled={!qrCode.trim()} className="px-8">
+                <Button onClick={() => handleQRSubmit()} disabled={!qrCode.trim()} className="px-6">
                   <QrCode className="h-4 w-4 mr-2" />
-                  Escanear
+                  Buscar
+                </Button>
+                <Button
+                  onClick={isScanning ? stopCamera : startCamera}
+                  variant={isScanning ? "destructive" : "secondary"}
+                  className="px-6"
+                >
+                  {isScanning ? (
+                    <>
+                      <CameraOff className="h-4 w-4 mr-2" />
+                      Detener
+                    </>
+                  ) : (
+                    <>
+                      <Camera className="h-4 w-4 mr-2" />
+                      Cámara
+                    </>
+                  )}
                 </Button>
               </div>
             </div>
+
+            {/* Camera View */}
+            {isScanning && (
+              <div className="space-y-4">
+                <div className="relative bg-black rounded-lg overflow-hidden">
+                  <video ref={videoRef} className="w-full h-64 object-cover" autoPlay playsInline muted />
+                  <div className="absolute inset-0 border-2 border-dashed border-white/50 m-8 rounded-lg flex items-center justify-center">
+                    <div className="text-white text-center">
+                      <QrCode className="h-12 w-12 mx-auto mb-2 opacity-75" />
+                      <p className="text-sm opacity-75">Apunta la cámara hacia el código QR</p>
+                    </div>
+                  </div>
+                  {/* Scanning animation overlay */}
+                  <div className="absolute inset-0 pointer-events-none">
+                    <div className="absolute top-1/2 left-0 right-0 h-0.5 bg-red-500 animate-pulse"></div>
+                  </div>
+                </div>
+                <div className="text-center">
+                  <p className="text-sm text-muted-foreground">
+                    📱 Posiciona el código QR dentro del marco para escanearlo automáticamente
+                  </p>
+                </div>
+              </div>
+            )}
+
+            {/* Scanner Error */}
+            {scannerError && (
+              <Alert className="border-red-200 bg-red-50 dark:border-red-800 dark:bg-red-950/30">
+                <AlertCircle className="h-4 w-4 text-red-600 dark:text-red-400" />
+                <AlertDescription className="text-red-800 dark:text-red-200">{scannerError}</AlertDescription>
+              </Alert>
+            )}
 
             {/* Códigos de prueba */}
             <div className="p-4 bg-gradient-to-r from-blue-50 to-purple-50 dark:from-blue-950/50 dark:to-purple-950/50 rounded-lg border border-blue-200 dark:border-blue-800">
@@ -436,9 +587,7 @@ export default function ScanPage() {
               <CardContent className="p-8 text-center">
                 <Package className="h-16 w-16 text-muted-foreground mx-auto mb-4" />
                 <h3 className="text-lg font-semibold mb-2">Escanea un QR de Pedido</h3>
-                <p className="text-muted-foreground">
-                  Usa uno de los códigos QR de ejemplo arriba para ver el detalle de un pedido
-                </p>
+                <p className="text-muted-foreground">Usa la cámara para escanear o ingresa manualmente el código QR</p>
               </CardContent>
             </Card>
           )}
