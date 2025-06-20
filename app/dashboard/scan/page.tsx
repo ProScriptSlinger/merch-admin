@@ -145,7 +145,7 @@ export default function ScanPage() {
           <Scan className="h-8 w-8 text-primary" />
         </div>
         <div>
-          <h1 className="text-3xl font-bold">Demo Sistema QR</h1>
+          <h1 className="text-3xl font-bold">Sistema QR</h1>
           <p className="text-muted-foreground">Entrega de pedidos y generación de pagos con QR</p>
         </div>
       </div>
@@ -316,6 +316,13 @@ export default function ScanPage() {
                       <div className="flex items-center gap-2">
                         <Clock className="h-4 w-4 text-muted-foreground" />
                         <span className="text-sm">{new Date(scannedOrder.orderDate).toLocaleString()}</span>
+                      </div>
+                      <div className="flex items-center">
+                        <CreditCard className="h-4 w-4 mr-2 text-gray-500" />
+                        <span className="text-sm text-gray-600">
+                          Método de pago:{" "}
+                          <Badge variant="outline">{scannedOrder.paymentMethod || "No especificado"}</Badge>
+                        </span>
                       </div>
                       <div className="flex items-center gap-2">
                         <DollarSign className="h-4 w-4 text-muted-foreground" />
