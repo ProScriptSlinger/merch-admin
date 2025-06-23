@@ -1,6 +1,6 @@
 "use client"
 
-import React, { useState, useMemo } from "react"
+import React, { useState, useMemo, useEffect } from "react"
 import Image from "next/image"
 import {
   PlusCircle,
@@ -39,23 +39,49 @@ import {
 } from "@/components/ui/dialog"
 import { Label } from "@/components/ui/label"
 import { useToast } from "@/hooks/use-toast"
-import { mockStands, mockProducts, getTotalAssignedStock } from "@/lib/data"
 import type { Stand, StandStock, Product } from "@/lib/types"
 import { Badge } from "@/components/ui/badge"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { cn } from "@/lib/utils"
-
-const initialStands: Stand[] = JSON.parse(JSON.stringify(mockStands)) // Deep copy
+import { getStands, createStand, updateStand, deleteStand, assignStockToStand, getProductVariantsForAssignment } from "@/lib/services/stands"
 
 export default function StandsPage() {
-  const [stands, setStands] = useState<Stand[]>(initialStands)
+  const [stands, setStands] = useState<Stand[]>([])
   const [searchTerm, setSearchTerm] = useState("")
   const [isFormOpen, setIsFormOpen] = useState(false)
   const [editingStand, setEditingStand] = useState<Stand | null>(null)
   const [viewingQrStand, setViewingQrStand] = useState<Stand | null>(null)
   const [expandedStandId, setExpandedStandId] = useState<string | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [products, setProducts] = useState<any[]>([])
 
   const { toast } = useToast()
+
+  // Load stands and products on component mount
+  useEffect(() => {
+    const loadData = async () => {
+      try {
+        setLoading(true)
+        const [standsData, productsData] = await Promise.all([
+          getStands(),
+          getProductVariantsForAssignment()
+        ])
+        setStands(standsData)
+        setProducts(productsData)
+      } catch (error) {
+        console.error('Error loading data:', error)
+        toast({ 
+          title: "Error", 
+          description: "Failed to load stands data.", 
+          variant: "destructive" 
+        })
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    loadData()
+  }, [toast])
 
   const filteredStands = useMemo(() => {
     return stands.filter(
@@ -75,42 +101,114 @@ export default function StandsPage() {
     setIsFormOpen(true)
   }
 
-  const handleDeleteStand = (standId: string) => {
-    setStands(stands.filter((s) => s.id !== standId))
-    toast({ title: "Stand Deleted", description: "The stand has been successfully deleted." })
+  const handleDeleteStand = async (standId: string) => {
+    try {
+      await deleteStand(standId)
+      setStands(stands.filter((s) => s.id !== standId))
+      toast({ title: "Stand Deleted", description: "The stand has been successfully deleted." })
+    } catch (error) {
+      console.error('Error deleting stand:', error)
+      toast({ 
+        title: "Error", 
+        description: "Failed to delete stand.", 
+        variant: "destructive" 
+      })
+    }
   }
 
-  const handleFormSubmit = (
+  const handleFormSubmit = async (
     formData: Omit<Stand, "id" | "qrCodeValue" | "stock"> & { id?: string; stock: StandStock[] },
   ) => {
-    if (editingStand) {
-      setStands(
-        stands.map((s) =>
-          s.id === editingStand.id
-            ? {
-                ...editingStand,
-                ...formData,
-                imageUrl:
-                  formData.imageUrl ||
-                  `/placeholder.svg?width=400&height=200&query=${formData.name.replace(/\s+/g, "+")}`,
+    try {
+      if (editingStand) {
+        const updatedStand = await updateStand({
+          id: editingStand.id,
+          name: formData.name,
+          location: formData.location,
+          description: formData.description,
+          operating_hours: formData.operatingHours,
+          image_url: formData.imageUrl,
+          contact_person: formData.contactPerson,
+          contact_phone: formData.contactPhone,
+        })
+        // Handle stock assignments
+        if (formData.stock.length > 0) {
+          const assignments = formData.stock
+            .filter(s => s.assignedQuantity > 0)
+            .map(s => {
+              return {
+                stand_id: editingStand.id,
+                product_variant_id: s.productId || '',
+                quantity: s.assignedQuantity
               }
-            : s,
-        ),
-      )
-      toast({ title: "Stand Updated", description: `${formData.name} has been updated.` })
-    } else {
-      const newStand: Stand = {
-        ...formData,
-        id: `stand_${Date.now()}`,
-        qrCodeValue: `EVENT_XYZ_STAND_${formData.name.replace(/\s+/g, "_").toUpperCase()}_${Date.now()}`,
-        imageUrl:
-          formData.imageUrl || `/placeholder.svg?width=400&height=200&query=${formData.name.replace(/\s+/g, "+")}`,
+            })
+            .filter(a => a.product_variant_id)
+
+          if (assignments.length > 0) {
+            await assignStockToStand(assignments)
+          }
+        }
+
+        const standsData = await getStands()
+        setStands(standsData)
+        toast({ title: "Stand Updated", description: `${formData.name} has been updated.` })
+      } else {
+        const newStand = await createStand({
+          name: formData.name,
+          location: formData.location,
+          description: formData.description,
+          operating_hours: formData.operatingHours,
+          image_url: formData.imageUrl,
+          contact_person: formData.contactPerson,
+          contact_phone: formData.contactPhone,
+        })
+
+        // Handle stock assignments for new stand
+        if (formData.stock.length > 0) {
+          const assignments = formData.stock
+            .filter(s => s.assignedQuantity > 0)
+            .map(s => {
+              const product = products.find(p => p.products?.id === s.productId)
+              return {
+                stand_id: newStand.id,
+                product_variant_id: product?.id || '',
+                quantity: s.assignedQuantity
+              }
+            })
+            .filter(a => a.product_variant_id)
+
+          if (assignments.length > 0) {
+            await assignStockToStand(assignments)
+          }
+        }
+
+        const standsData = await getStands()
+        setStands(standsData)
+        toast({ title: "Stand Added", description: `${newStand.name} has been added.` })
       }
-      setStands([...stands, newStand])
-      toast({ title: "Stand Added", description: `${newStand.name} has been added.` })
+      setIsFormOpen(false)
+      setEditingStand(null)
+    } catch (error) {
+      console.error('Error saving stand:', error)
+      toast({ 
+        title: "Error", 
+        description: "Failed to save stand.", 
+        variant: "destructive" 
+      })
     }
-    setIsFormOpen(false)
-    setEditingStand(null)
+  }
+
+  if (loading) {
+    return (
+      <div className="container mx-auto py-8">
+        <div className="flex items-center justify-center h-64">
+          <div className="text-center">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900 mx-auto"></div>
+            <p className="mt-2 text-muted-foreground">Loading stands...</p>
+          </div>
+        </div>
+      </div>
+    )
   }
 
   return (
@@ -127,7 +225,7 @@ export default function StandsPage() {
         onOpenChange={setIsFormOpen}
         onSubmit={handleFormSubmit}
         stand={editingStand}
-        allProducts={mockProducts}
+        allProducts={products}
         onClose={() => {
           setIsFormOpen(false)
           setEditingStand(null)
@@ -146,13 +244,13 @@ export default function StandsPage() {
         <CardHeader>
           <CardTitle>All Stands</CardTitle>
           <CardDescription>Manage your event distribution points. View, edit, or generate QR codes.</CardDescription>
-          <div className="mt-4">
+          <div className="mt-4 relative">
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
             <Input
               placeholder="Search stands by name or location..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="max-w-sm"
-              icon={<Search className="h-4 w-4 text-muted-foreground" />}
+              className="max-w-sm pl-10"
             />
           </div>
         </CardHeader>
@@ -260,7 +358,7 @@ export default function StandsPage() {
                             <div>
                               <h4 className="font-semibold mb-2">Stock Details</h4>
                               <div className="space-y-1">
-                                {stand.stock.map((s) => (
+                                {stand.stock.map((s: StandStock) => (
                                   <div key={s.productId} className="flex justify-between text-sm">
                                     <span>{s.productName}</span>
                                     <span className="font-mono">
@@ -305,7 +403,7 @@ interface StandFormDialogProps {
   onOpenChange: (isOpen: boolean) => void
   onSubmit: (data: Omit<Stand, "id" | "qrCodeValue" | "stock"> & { id?: string; stock: StandStock[] }) => void
   stand: Stand | null
-  allProducts: Product[]
+  allProducts: any[]
   onClose: () => void
 }
 
@@ -318,7 +416,6 @@ function StandFormDialog({ isOpen, onOpenChange, onSubmit, stand, allProducts, o
   const [contactPerson, setContactPerson] = useState("")
   const [contactPhone, setContactPhone] = useState("")
   const [assignedStock, setAssignedStock] = useState<StandStock[]>([])
-
   React.useEffect(() => {
     if (stand) {
       setName(stand.name)
@@ -328,7 +425,7 @@ function StandFormDialog({ isOpen, onOpenChange, onSubmit, stand, allProducts, o
       setImageUrl(stand.imageUrl || "")
       setContactPerson(stand.contactPerson || "")
       setContactPhone(stand.contactPhone || "")
-      setAssignedStock(stand.stock.map((s) => ({ ...s })))
+      setAssignedStock(stand.stock.map((s: StandStock) => ({ ...s })))
     } else {
       setName("")
       setLocation("")
@@ -348,8 +445,9 @@ function StandFormDialog({ isOpen, onOpenChange, onSubmit, stand, allProducts, o
         return prevStock.map((s) => (s.productId === productId ? { ...s, assignedQuantity: quantity, productName } : s))
       }
       return [...prevStock, { productId, productName, assignedQuantity: quantity, deliveredQuantity: 0 }]
-    }).filter((s) => s.assignedQuantity > 0)
+    })
   }
+
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
@@ -374,7 +472,7 @@ function StandFormDialog({ isOpen, onOpenChange, onSubmit, stand, allProducts, o
         if (!open) onClose()
       }}
     >
-      <DialogContent className="sm:max-w-2xl">
+      <DialogContent className="max-w-[80vw]">
         <DialogHeader>
           <DialogTitle>{stand ? "Edit Stand" : "Add New Stand"}</DialogTitle>
           <DialogDescription>
@@ -445,29 +543,27 @@ function StandFormDialog({ isOpen, onOpenChange, onSubmit, stand, allProducts, o
               <Label className="font-medium">Assign Product Stock</Label>
               <ScrollArea className="h-[420px] mt-2 border rounded-md p-2">
                 {allProducts.map((product) => {
-                  const currentAssignment = assignedStock.find((s) => s.productId === product.id)
+                  const currentAssignment = assignedStock.find((s) => s.productId === product?.id)
                   const productMaxAssignable = Math.max(
                     0,
-                    (product.total_quantity || 0) -
-                      getTotalAssignedStock(product) +
-                      (currentAssignment?.assignedQuantity || 0),
+                    (product.quantity || 0)
                   )
 
                   return (
                     <div key={product.id} className="grid grid-cols-3 items-center gap-2 mb-2">
-                      <Label htmlFor={`stock-${product.id}`} className="col-span-1 truncate" title={product.name}>
-                        {product.name}
+                      <Label htmlFor={`stock-${product.id}`} className="col-span-2 truncate" title={product.products?.name}>
+                        {product.products?.name} ({product.size})
                       </Label>
                       <Input
                         id={`stock-${product.id}`}
                         type="number"
                         min="0"
-                        max={productMaxAssignable}
+                        // max={productMaxAssignable}
                         value={currentAssignment?.assignedQuantity || 0}
-                        onChange={(e) => handleStockChange(product.id, product.name, Number.parseInt(e.target.value))}
-                        className="col-span-2"
+                        onChange={(e) => handleStockChange(product.id || '', product.products?.name || '', Number.parseInt(e.target.value))}
+                        className="col-span-1"
                       />
-                      <small className="col-span-3 text-xs text-muted-foreground text-right -mt-1">
+                      <small className="col-span-2 text-xs text-muted-foreground text-right -mt-1">
                         Available to assign: {productMaxAssignable}
                       </small>
                     </div>

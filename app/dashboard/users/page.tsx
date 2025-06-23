@@ -1,12 +1,13 @@
 "use client"
 
-import { useState, useMemo } from "react"
+import { useState, useEffect, useMemo } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
+import { Badge } from "@/components/ui/badge"
 import {
   Users,
   Search,
@@ -19,31 +20,70 @@ import {
   QrCode,
   TrendingUp,
   UserCheck,
+  Loader2,
 } from "lucide-react"
-import { mockDemoUsers, type DemoUser } from "@/lib/data"
+import { getUsers, type UserProfile } from "@/lib/services/users"
+import { useApp } from "@/contexts/AppContext"
+import { useToast } from "@/hooks/use-toast"
 
 export default function UsersPage() {
+  const [users, setUsers] = useState<UserProfile[]>([])
+  const [isLoading, setIsLoading] = useState(true)
   const [searchTerm, setSearchTerm] = useState("")
-  const [selectedUser, setSelectedUser] = useState<DemoUser | null>(null)
+  const [selectedUser, setSelectedUser] = useState<UserProfile | null>(null)
+  const { subscribeToRealtime, unsubscribeFromRealtime } = useApp()
+  const { toast } = useToast()
+
+  const fetchUsers = async () => {
+    setIsLoading(true)
+    try {
+      const usersData = await getUsers()
+      setUsers(usersData)
+    } catch (error) {
+      console.error("Error al cargar usuarios:", error)
+      toast({
+        title: "Error",
+        description: "No se pudieron cargar los usuarios",
+        variant: "destructive",
+      })
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    fetchUsers()
+
+    // Subscribe to real-time updates
+    // subscribeToRealtime('users', (payload) => {
+    //   console.log('Users real-time update:', payload)
+    //   fetchUsers()
+    // })
+
+    // Cleanup subscription
+    // return () => {
+    //   unsubscribeFromRealtime('users')
+    // }
+  }, [])
 
   // Filtrar usuarios basado en el término de búsqueda
   const filteredUsers = useMemo(() => {
-    return mockDemoUsers.filter(
+    return users.filter(
       (user) =>
-        user.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        user.full_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
         user.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        user.phone.includes(searchTerm) ||
-        user.qrCode.toLowerCase().includes(searchTerm.toLowerCase()),
+        user.phone?.includes(searchTerm) ||
+        user.qr_code?.toLowerCase().includes(searchTerm.toLowerCase()),
     )
-  }, [searchTerm])
+  }, [users, searchTerm])
 
   // Estadísticas de usuarios
   const stats = useMemo(() => {
-    const totalUsers = mockDemoUsers.length
-    const totalBalance = mockDemoUsers.reduce((sum, user) => sum + user.balance, 0)
-    const totalPurchases = mockDemoUsers.reduce((sum, user) => sum + user.totalPurchases, 0)
-    const activeUsers = mockDemoUsers.filter((user) => {
-      const lastActivity = new Date(user.lastActivity)
+    const totalUsers = users.length
+    const totalBalance = users.reduce((sum, user) => sum + (user.balance || 0), 0)
+    const totalPurchases = users.reduce((sum, user) => sum + (user.total_purchases || 0), 0)
+    const activeUsers = users.filter((user) => {
+      const lastActivity = new Date(user.last_activity)
       const daysSinceActivity = (Date.now() - lastActivity.getTime()) / (1000 * 60 * 60 * 24)
       return daysSinceActivity <= 7
     }).length
@@ -54,7 +94,7 @@ export default function UsersPage() {
       totalPurchases,
       activeUsers,
     }
-  }, [])
+  }, [users])
 
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat("es-AR", {
@@ -80,6 +120,32 @@ export default function UsersPage() {
     if (daysSinceActivity <= 7) return { status: "Esta semana", color: "bg-blue-500" }
     if (daysSinceActivity <= 30) return { status: "Este mes", color: "bg-yellow-500" }
     return { status: "Inactivo", color: "bg-gray-500" }
+  }
+
+  const getRoleBadge = (role: string) => {
+    switch (role) {
+      case 'admin':
+        return <Badge variant="destructive">Admin</Badge>
+      case 'manager':
+        return <Badge variant="default">Manager</Badge>
+      case 'staff':
+        return <Badge variant="secondary">Staff</Badge>
+      default:
+        return <Badge variant="outline">{role}</Badge>
+    }
+  }
+
+  if (isLoading) {
+    return (
+      <div className="container mx-auto py-8 space-y-8">
+        <div className="flex items-center justify-center h-64">
+          <div className="flex items-center space-x-2">
+            <Loader2 className="h-6 w-6 animate-spin" />
+            <span>Cargando usuarios...</span>
+          </div>
+        </div>
+      </div>
+    )
   }
 
   return (
@@ -164,7 +230,7 @@ export default function UsersPage() {
             </Button>
           </div>
           <p className="text-sm text-muted-foreground mt-2">
-            Mostrando {filteredUsers.length} de {mockDemoUsers.length} usuarios
+            Mostrando {filteredUsers.length} de {users.length} usuarios
           </p>
         </CardContent>
       </Card>
@@ -181,6 +247,7 @@ export default function UsersPage() {
                 <TableRow>
                   <TableHead>Usuario</TableHead>
                   <TableHead>Contacto</TableHead>
+                  <TableHead>Rol</TableHead>
                   <TableHead>Balance</TableHead>
                   <TableHead>Compras</TableHead>
                   <TableHead>Actividad</TableHead>
@@ -190,178 +257,122 @@ export default function UsersPage() {
               </TableHeader>
               <TableBody>
                 {filteredUsers.map((user) => {
-                  const activityStatus = getActivityStatus(user.lastActivity)
+                  const activityStatus = getActivityStatus(user.last_activity)
                   return (
                     <TableRow key={user.id}>
                       <TableCell>
                         <div className="flex items-center gap-3">
                           <Avatar className="h-10 w-10">
-                            <AvatarImage src={user.avatar || "/placeholder.svg"} alt={user.name} />
+                            <AvatarImage src={user.avatar_url || "/placeholder.svg"} alt={user.full_name || user.email} />
                             <AvatarFallback>
-                              {user.name
-                                .split(" ")
-                                .map((n) => n[0])
-                                .join("")
-                                .toUpperCase()}
+                              {user.full_name?.charAt(0) || user.email.charAt(0).toUpperCase()}
                             </AvatarFallback>
                           </Avatar>
                           <div>
-                            <div className="font-medium">{user.name}</div>
-                            <div className="text-sm text-muted-foreground flex items-center gap-1">
-                              <QrCode className="h-3 w-3" />
-                              {user.qrCode}
-                            </div>
+                            <div className="font-medium">{user.full_name || "Sin nombre"}</div>
+                            <div className="text-sm text-muted-foreground">{user.email}</div>
                           </div>
                         </div>
                       </TableCell>
                       <TableCell>
                         <div className="space-y-1">
-                          <div className="flex items-center gap-1 text-sm">
+                          <div className="flex items-center gap-2 text-sm">
                             <Mail className="h-3 w-3" />
                             {user.email}
                           </div>
-                          <div className="flex items-center gap-1 text-sm text-muted-foreground">
-                            <Phone className="h-3 w-3" />
-                            {user.phone}
-                          </div>
+                          {user.phone && (
+                            <div className="flex items-center gap-2 text-sm">
+                              <Phone className="h-3 w-3" />
+                              {user.phone}
+                            </div>
+                          )}
                         </div>
                       </TableCell>
                       <TableCell>
-                        <div className="font-medium">{formatCurrency(user.balance)}</div>
+                        {getRoleBadge(user.role)}
                       </TableCell>
                       <TableCell>
-                        <div className="font-medium">{formatCurrency(user.totalPurchases)}</div>
+                        <div className="font-mono">{formatCurrency(user.balance || 0)}</div>
+                      </TableCell>
+                      <TableCell>
+                        <div className="font-mono">{user.total_purchases || 0}</div>
                       </TableCell>
                       <TableCell>
                         <div className="flex items-center gap-2">
-                          <div className={`w-2 h-2 rounded-full ${activityStatus.color}`} />
+                          <div className={`w-2 h-2 rounded-full ${activityStatus.color}`}></div>
                           <span className="text-sm">{activityStatus.status}</span>
                         </div>
                       </TableCell>
                       <TableCell>
-                        <div className="flex items-center gap-1 text-sm">
-                          <Calendar className="h-3 w-3" />
-                          {formatDate(user.registrationDate)}
+                        <div className="text-sm text-muted-foreground">
+                          {formatDate(user.created_at)}
                         </div>
                       </TableCell>
                       <TableCell>
                         <Dialog>
                           <DialogTrigger asChild>
-                            <Button variant="outline" size="sm" onClick={() => setSelectedUser(user)}>
-                              <Eye className="h-4 w-4 mr-1" />
-                              Ver
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => setSelectedUser(user)}
+                            >
+                              <Eye className="h-4 w-4" />
                             </Button>
                           </DialogTrigger>
-                          <DialogContent className="max-w-2xl">
+                          <DialogContent className="max-w-md">
                             <DialogHeader>
-                              <DialogTitle className="flex items-center gap-3">
-                                <Avatar className="h-12 w-12">
-                                  <AvatarImage src={user.avatar || "/placeholder.svg"} alt={user.name} />
+                              <DialogTitle>Detalles del Usuario</DialogTitle>
+                            </DialogHeader>
+                            <div className="space-y-4">
+                              <div className="flex items-center gap-3">
+                                <Avatar className="h-16 w-16">
+                                  <AvatarImage src={user.avatar_url || "/placeholder.svg"} alt={user.full_name || user.email} />
                                   <AvatarFallback>
-                                    {user.name
-                                      .split(" ")
-                                      .map((n) => n[0])
-                                      .join("")
-                                      .toUpperCase()}
+                                    {user.full_name?.charAt(0) || user.email.charAt(0).toUpperCase()}
                                   </AvatarFallback>
                                 </Avatar>
-                                Detalles de {user.name}
-                              </DialogTitle>
-                            </DialogHeader>
-
-                            {selectedUser && (
-                              <div className="grid gap-6">
-                                <div className="grid grid-cols-2 gap-4">
-                                  <Card>
-                                    <CardHeader className="pb-3">
-                                      <CardTitle className="text-sm flex items-center gap-2">
-                                        <Mail className="h-4 w-4" />
-                                        Información de Contacto
-                                      </CardTitle>
-                                    </CardHeader>
-                                    <CardContent className="space-y-2">
-                                      <div>
-                                        <p className="text-sm font-medium">Email</p>
-                                        <p className="text-sm text-muted-foreground">{selectedUser.email}</p>
-                                      </div>
-                                      <div>
-                                        <p className="text-sm font-medium">Teléfono</p>
-                                        <p className="text-sm text-muted-foreground">{selectedUser.phone}</p>
-                                      </div>
-                                      <div>
-                                        <p className="text-sm font-medium">Código QR</p>
-                                        <p className="text-sm text-muted-foreground font-mono">{selectedUser.qrCode}</p>
-                                      </div>
-                                    </CardContent>
-                                  </Card>
-
-                                  <Card>
-                                    <CardHeader className="pb-3">
-                                      <CardTitle className="text-sm flex items-center gap-2">
-                                        <CreditCard className="h-4 w-4" />
-                                        Información Financiera
-                                      </CardTitle>
-                                    </CardHeader>
-                                    <CardContent className="space-y-2">
-                                      <div>
-                                        <p className="text-sm font-medium">Balance Actual</p>
-                                        <p className="text-lg font-bold text-green-600">
-                                          {formatCurrency(selectedUser.balance)}
-                                        </p>
-                                      </div>
-                                      <div>
-                                        <p className="text-sm font-medium">Total Compras</p>
-                                        <p className="text-lg font-bold">
-                                          {formatCurrency(selectedUser.totalPurchases)}
-                                        </p>
-                                      </div>
-                                    </CardContent>
-                                  </Card>
+                                <div>
+                                  <h3 className="font-semibold">{user.full_name || "Sin nombre"}</h3>
+                                  <p className="text-sm text-muted-foreground">{user.email}</p>
+                                  {getRoleBadge(user.role)}
                                 </div>
-
-                                <Card>
-                                  <CardHeader className="pb-3">
-                                    <CardTitle className="text-sm flex items-center gap-2">
-                                      <Activity className="h-4 w-4" />
-                                      Actividad
-                                    </CardTitle>
-                                  </CardHeader>
-                                  <CardContent className="space-y-2">
-                                    <div className="grid grid-cols-2 gap-4">
-                                      <div>
-                                        <p className="text-sm font-medium">Fecha de Registro</p>
-                                        <p className="text-sm text-muted-foreground">
-                                          {new Date(selectedUser.registrationDate).toLocaleDateString("es-AR", {
-                                            year: "numeric",
-                                            month: "long",
-                                            day: "numeric",
-                                            hour: "2-digit",
-                                            minute: "2-digit",
-                                          })}
-                                        </p>
-                                      </div>
-                                      <div>
-                                        <p className="text-sm font-medium">Última Actividad</p>
-                                        <div className="flex items-center gap-2">
-                                          <div
-                                            className={`w-2 h-2 rounded-full ${getActivityStatus(selectedUser.lastActivity).color}`}
-                                          />
-                                          <p className="text-sm text-muted-foreground">
-                                            {new Date(selectedUser.lastActivity).toLocaleDateString("es-AR", {
-                                              year: "numeric",
-                                              month: "short",
-                                              day: "numeric",
-                                              hour: "2-digit",
-                                              minute: "2-digit",
-                                            })}
-                                          </p>
-                                        </div>
-                                      </div>
-                                    </div>
-                                  </CardContent>
-                                </Card>
                               </div>
-                            )}
+                              
+                              <div className="grid grid-cols-2 gap-4 text-sm">
+                                <div>
+                                  <span className="font-medium">Balance:</span>
+                                  <div className="font-mono">{formatCurrency(user.balance || 0)}</div>
+                                </div>
+                                <div>
+                                  <span className="font-medium">Compras:</span>
+                                  <div>{user.total_purchases || 0}</div>
+                                </div>
+                                <div>
+                                  <span className="font-medium">Teléfono:</span>
+                                  <div>{user.phone || "No especificado"}</div>
+                                </div>
+                                <div>
+                                  <span className="font-medium">Registro:</span>
+                                  <div>{formatDate(user.created_at)}</div>
+                                </div>
+                              </div>
+
+                              {user.qr_code && (
+                                <div>
+                                  <span className="font-medium text-sm">Código QR:</span>
+                                  <div className="font-mono text-xs bg-muted p-2 rounded mt-1">
+                                    {user.qr_code}
+                                  </div>
+                                </div>
+                              )}
+
+                              <div>
+                                <span className="font-medium text-sm">Última actividad:</span>
+                                <div className="text-sm text-muted-foreground">
+                                  {formatDate(user.last_activity)}
+                                </div>
+                              </div>
+                            </div>
                           </DialogContent>
                         </Dialog>
                       </TableCell>
@@ -371,16 +382,6 @@ export default function UsersPage() {
               </TableBody>
             </Table>
           </div>
-
-          {filteredUsers.length === 0 && (
-            <div className="text-center py-8">
-              <Users className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-              <h3 className="text-lg font-medium">No se encontraron usuarios</h3>
-              <p className="text-muted-foreground">
-                {searchTerm ? "Intenta con otros términos de búsqueda" : "No hay usuarios registrados"}
-              </p>
-            </div>
-          )}
         </CardContent>
       </Card>
     </div>

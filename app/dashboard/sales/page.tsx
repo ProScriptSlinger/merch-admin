@@ -378,7 +378,7 @@ export default function SalesPage() {
   }
 
   return (
-    <div className="container mx-auto py-4 sm:py-8 px-4 sm:px-6">
+    <div className="container mx-auto py-8 space-y-8">
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between mb-6 sm:mb-8 gap-4">
         <h1 className="text-2xl sm:text-3xl font-bold">Gestión de Ventas</h1>
         <div className="flex gap-2">

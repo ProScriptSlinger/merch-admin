@@ -93,3 +93,24 @@ export interface NavItem {
   href: string
   icon: React.ComponentType<{ className?: string }>
 }
+
+// Stand and StandStock types for the stands page
+export interface StandStock {
+  productId: string
+  productName: string
+  assignedQuantity: number
+  deliveredQuantity: number
+}
+
+export interface Stand {
+  id: string
+  name: string
+  location: string
+  description?: string
+  operatingHours?: string
+  imageUrl?: string
+  contactPerson?: string
+  contactPhone?: string
+  qrCodeValue: string
+  stock: StandStock[]
+}

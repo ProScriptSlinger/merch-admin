@@ -16,12 +16,12 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { useToast } from "@/hooks/use-toast"
-import type { Product } from "@/lib/types"
+import type { ProductWithDetails } from "@/lib/services/products"
 import { mockStands, getTotalAssignedStock, getTotalRemainingStock } from "@/lib/data"
 import { Store, Package, AlertCircle } from "lucide-react"
 
 interface StockAssignmentDialogProps {
-  product: Product | null
+  product: ProductWithDetails | null
   isOpen: boolean
   onOpenChange: (open: boolean) => void
   onSuccess: () => void
@@ -33,6 +33,13 @@ interface StandAssignment {
   currentAssigned: number
   newAssignment: number
 }
+
+// Adapter function to convert ProductWithDetails to the format expected by helper functions
+const adaptProductForHelpers = (product: ProductWithDetails) => ({
+  product_id: product.id,
+  total_quantity: product.total_quantity,
+  name: product.name
+})
 
 export default function StockAssignmentDialog({
   product,
@@ -47,7 +54,7 @@ export default function StockAssignmentDialog({
   useEffect(() => {
     if (product && isOpen) {
       const standAssignments = mockStands.map((stand) => {
-        const currentStock = stand.stock.find((s) => s.productId === product.product_id)
+        const currentStock = stand.stock.find((s) => s.productId === product.id)
         return {
           standId: stand.id,
           standName: stand.name,
@@ -61,9 +68,10 @@ export default function StockAssignmentDialog({
 
   if (!product) return null
 
-  const totalStock = product.total_quantity || 0
-  const currentlyAssigned = getTotalAssignedStock(product)
-  const availableForAssignment = getTotalRemainingStock(product)
+  const adaptedProduct = adaptProductForHelpers(product)
+  const totalStock = adaptedProduct.total_quantity || 0
+  const currentlyAssigned = getTotalAssignedStock(adaptedProduct)
+  const availableForAssignment = getTotalRemainingStock(adaptedProduct)
   const newAssignmentTotal = assignments.reduce((sum, a) => sum + a.newAssignment, 0)
   const remainingAfterAssignment = availableForAssignment - newAssignmentTotal
 
@@ -93,12 +101,12 @@ export default function StockAssignmentDialog({
         if (assignment.newAssignment > 0) {
           const stand = mockStands.find((s) => s.id === assignment.standId)
           if (stand) {
-            const existingStock = stand.stock.find((s) => s.productId === product.product_id)
+            const existingStock = stand.stock.find((s) => s.productId === product.id)
             if (existingStock) {
               existingStock.assignedQuantity += assignment.newAssignment
             } else {
               stand.stock.push({
-                productId: product.product_id,
+                productId: product.id,
                 productName: product.name,
                 assignedQuantity: assignment.newAssignment,
                 deliveredQuantity: 0,
@@ -237,7 +245,7 @@ export default function StockAssignmentDialog({
         </div>
 
         <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)} disabled={isSubmitting}>
+          <Button variant="outline" onClick={() => onOpenChange(false)}>
             Cancelar
           </Button>
           <Button onClick={handleSubmit} disabled={!isValidAssignment || isSubmitting}>

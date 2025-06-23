@@ -14,9 +14,10 @@ import {
 import ProductForm from "./product-form"
 import ProductsTable from "./products-table"
 import StockAssignmentDialog from "./stock-assignment-dialog"
-import type { Product } from "@/lib/types"
-import { mockProducts } from "@/lib/data"
 import { PlusCircle } from "lucide-react"
+import { getProducts, type ProductWithDetails } from "@/lib/services/products"
+import { useApp } from "@/contexts/AppContext"
+import { useToast } from "@/hooks/use-toast"
 
 function LoadingSpinner() {
   return (
@@ -28,19 +29,26 @@ function LoadingSpinner() {
 }
 
 export default function ProductsPage() {
-  const [products, setProducts] = useState<Product[]>([])
+  const [products, setProducts] = useState<ProductWithDetails[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [isFormDialogOpen, setIsFormDialogOpen] = useState(false)
-  const [selectedProductForAssignment, setSelectedProductForAssignment] = useState<Product | null>(null)
+  const [editingProduct, setEditingProduct] = useState<ProductWithDetails | null>(null)
+  const [selectedProductForAssignment, setSelectedProductForAssignment] = useState<ProductWithDetails | null>(null)
+  const { subscribeToRealtime, unsubscribeFromRealtime } = useApp()
+  const { toast } = useToast()
 
   const fetchProducts = async () => {
     setIsLoading(true)
     try {
-      // Simular carga de datos
-      await new Promise((resolve) => setTimeout(resolve, 500))
-      setProducts(mockProducts)
+      const productsData = await getProducts()
+      setProducts(productsData)
     } catch (error) {
       console.error("Error al cargar productos:", error)
+      toast({
+        title: "Error",
+        description: "No se pudieron cargar los productos",
+        variant: "destructive",
+      })
     } finally {
       setIsLoading(false)
     }
@@ -48,20 +56,67 @@ export default function ProductsPage() {
 
   useEffect(() => {
     fetchProducts()
+
+    // // Subscribe to real-time updates
+    // subscribeToRealtime('products', (payload) => {
+    //   console.log('Products real-time update:', payload)
+    //   fetchProducts()
+    // })
+
+    // subscribeToRealtime('product_variants', (payload) => {
+    //   console.log('Product variants real-time update:', payload)
+    //   fetchProducts()
+    // })
+
+    // subscribeToRealtime('product_images', (payload) => {
+    //   console.log('Product images real-time update:', payload)
+    //   fetchProducts()
+    // })
+
+    // // Cleanup subscriptions
+    // return () => {
+    //   unsubscribeFromRealtime('products')
+    //   unsubscribeFromRealtime('product_variants')
+    //   unsubscribeFromRealtime('product_images')
+    // }
   }, [])
 
   const handleFormSuccess = () => {
     setIsFormDialogOpen(false)
+    setEditingProduct(null)
     fetchProducts()
+    toast({
+      title: "Éxito",
+      description: editingProduct ? "Producto actualizado correctamente" : "Producto creado correctamente",
+    })
   }
 
-  const handleAssignStock = (product: Product) => {
+  const handleAddProduct = () => {
+    setEditingProduct(null)
+    setIsFormDialogOpen(true)
+  }
+
+  const handleEditProduct = (product: ProductWithDetails) => {
+    setEditingProduct(product)
+    setIsFormDialogOpen(true)
+  }
+
+  const handleAssignStock = (product: ProductWithDetails) => {
     setSelectedProductForAssignment(product)
   }
 
   const handleAssignmentSuccess = () => {
     setSelectedProductForAssignment(null)
-    fetchProducts() // Recargar para mostrar cambios
+    fetchProducts()
+    toast({
+      title: "Éxito",
+      description: "Stock asignado correctamente",
+    })
+  }
+
+  const handleDialogClose = () => {
+    setIsFormDialogOpen(false)
+    setEditingProduct(null)
   }
 
   return (
@@ -70,19 +125,27 @@ export default function ProductsPage() {
         <h1 className="text-3xl font-bold">Gestión de Productos</h1>
         <Dialog open={isFormDialogOpen} onOpenChange={setIsFormDialogOpen}>
           <DialogTrigger asChild>
-            <Button onClick={() => setIsFormDialogOpen(true)}>
+            <Button onClick={handleAddProduct}>
               <PlusCircle className="mr-2 h-5 w-5" /> Agregar Nuevo Producto
             </Button>
           </DialogTrigger>
           <DialogContent className="sm:max-w-2xl">
             <DialogHeader>
-              <DialogTitle>Agregar Nuevo Producto</DialogTitle>
+              <DialogTitle>
+                {editingProduct ? "Editar Producto" : "Agregar Nuevo Producto"}
+              </DialogTitle>
               <DialogDescription>
-                Completa el formulario para agregar un nuevo producto al inventario.
+                {editingProduct 
+                  ? "Modifica los datos del producto seleccionado."
+                  : "Completa el formulario para agregar un nuevo producto al inventario."
+                }
               </DialogDescription>
             </DialogHeader>
             <div className="py-4">
-              <ProductForm onFormSubmitSuccess={handleFormSuccess} />
+              <ProductForm 
+                onFormSubmitSuccess={handleFormSuccess} 
+                product={editingProduct}
+              />
             </div>
           </DialogContent>
         </Dialog>
@@ -94,7 +157,15 @@ export default function ProductsPage() {
           <CardDescription>Lista de productos con control de stock y asignación a stands.</CardDescription>
         </CardHeader>
         <CardContent>
-          {isLoading ? <LoadingSpinner /> : <ProductsTable products={products} onAssignStock={handleAssignStock} />}
+          {isLoading ? (
+            <LoadingSpinner /> 
+          ) : (
+            <ProductsTable 
+              products={products} 
+              onAssignStock={handleAssignStock}
+              onEdit={handleEditProduct}
+            />
+          )}
         </CardContent>
       </Card>
 
