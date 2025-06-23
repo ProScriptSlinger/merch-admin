@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
@@ -11,22 +11,56 @@ import { Label } from "@/components/ui/label"
 import { Separator } from "@/components/ui/separator"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Trash2, Plus, Package, ShoppingCart, Edit3, Save, X, Shirt, DollarSign } from "lucide-react"
-import { mockProducts } from "@/lib/data"
-import type { OrderItem } from "@/lib/data"
+import type { OrderWithDetails } from "@/lib/services/orders"
+import { getProductVariantsForAssignment } from "@/lib/services/stands"
+import Image from "next/image"
 
 interface EditOrderDialogProps {
   open: boolean
   onOpenChange: (open: boolean) => void
-  orderItems: OrderItem[]
-  onSaveChanges: (updatedItems: OrderItem[]) => void
+  orderItems: OrderWithDetails['items']
+  onSaveChanges: (updatedItems: OrderWithDetails['items']) => void
+}
+
+interface ProductVariant {
+  id: string
+  size: string
+  quantity: number
+  price: number
+  products: {
+    id: string
+    name: string
+    images: string[]
+  }
 }
 
 export function EditOrderDialog({ open, onOpenChange, orderItems, onSaveChanges }: EditOrderDialogProps) {
-  const [items, setItems] = useState<OrderItem[]>(orderItems)
+  const [items, setItems] = useState<OrderWithDetails['items']>(orderItems)
   const [showAddProduct, setShowAddProduct] = useState(false)
   const [selectedProductId, setSelectedProductId] = useState("")
   const [selectedSize, setSelectedSize] = useState("")
   const [quantity, setQuantity] = useState(1)
+  const [productVariants, setProductVariants] = useState<ProductVariant[]>([])
+  const [isLoadingProducts, setIsLoadingProducts] = useState(false)
+
+  // Fetch product variants when dialog opens
+  useEffect(() => {
+    if (open) {
+      fetchProductVariants()
+    }
+  }, [open])
+
+  const fetchProductVariants = async () => {
+    setIsLoadingProducts(true)
+    try {
+      const variants = await getProductVariantsForAssignment()
+      setProductVariants(variants)
+    } catch (error) {
+      console.error("Error fetching product variants:", error)
+    } finally {
+      setIsLoadingProducts(false)
+    }
+  }
 
   const removeItem = (itemId: string) => {
     setItems(items.filter((item) => item.id !== itemId))
@@ -40,16 +74,36 @@ export function EditOrderDialog({ open, onOpenChange, orderItems, onSaveChanges 
   const addNewProduct = () => {
     if (!selectedProductId || !selectedSize) return
 
-    const product = mockProducts.find((p) => p.product_id === selectedProductId)
-    if (!product) return
+    const selectedVariant = productVariants.find(v => v.id === selectedProductId)
+    if (!selectedVariant) return
 
-    const newItem: OrderItem = {
+    // Find the specific variant with the selected size
+    const sizeVariant = productVariants.find(v => 
+      v.products.id === selectedVariant.products.id && v.size === selectedSize
+    )
+    if (!sizeVariant) return
+
+    const newItem = {
       id: `item_${Date.now()}`,
-      productId: selectedProductId,
-      productName: product.name,
-      size: selectedSize,
+      order_id: "",
+      product_variant_id: sizeVariant.id,
       quantity: quantity,
-      unitPrice: getProductPrice(selectedProductId),
+      unit_price: sizeVariant.price,
+      created_at: new Date().toISOString(),
+      product_variant: {
+        id: sizeVariant.id,
+        product_id: sizeVariant.products.id,
+        size: sizeVariant.size,
+        quantity: sizeVariant.quantity,
+        price: sizeVariant.price,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+        product: {
+          id: sizeVariant.products.id,
+          name: sizeVariant.products.name,
+          images: [],
+        },
+      },
     }
 
     setItems([...items, newItem])
@@ -59,26 +113,22 @@ export function EditOrderDialog({ open, onOpenChange, orderItems, onSaveChanges 
     setShowAddProduct(false)
   }
 
-  const getProductPrice = (productId: string): number => {
-    // Precios demo basados en el tipo de producto
-    const priceMap: { [key: string]: number } = {
-      prod_1: 25000, // Campera de Cuero
-      prod_2: 18000, // Jeans Slim
-      prod_3: 8500, // Remera Básica
-      prod_4: 32000, // Zapatillas Deportivas
-      prod_5: 15000, // Buzo con Capucha
-      prod_6: 22000, // Vestido Casual
-    }
-    return priceMap[productId] || 10000
+  const getAvailableSizes = (productId: string) => {
+    const product = productVariants.find(v => v.products.id === productId)
+    if (!product) return []
+    
+    // Get all sizes for this product
+    return productVariants
+      .filter(v => v.products.id === productId)
+      .map(v => v.size)
   }
 
-  const getAvailableSizes = (productId: string) => {
-    const product = mockProducts.find((p) => p.product_id === productId)
-    return product?.variants.map((v) => v.size) || []
+  const getProductVariantsByProduct = (productId: string) => {
+    return productVariants.filter(v => v.products.id === productId)
   }
 
   const calculateTotal = () => {
-    return items.reduce((total, item) => total + item.unitPrice * item.quantity, 0)
+    return items.reduce((total, item) => total + item.unit_price * item.quantity, 0)
   }
 
   const handleSave = () => {
@@ -117,14 +167,24 @@ export function EditOrderDialog({ open, onOpenChange, orderItems, onSaveChanges 
                       <div className="flex items-center justify-between">
                         <div className="flex items-center gap-4">
                           <div className="w-12 h-12 bg-muted dark:bg-gray-700 rounded-lg flex items-center justify-center">
-                            <Shirt className="h-6 w-6 text-muted-foreground dark:text-gray-400" />
+                            {item?.product_variant?.product?.images && item.product_variant.product.images.length > 0 ? (
+                              <Image 
+                                src={item.product_variant.product.images[0].image_url} 
+                                alt={item.product_variant.product.name} 
+                                width={48} 
+                                height={48}
+                                className="object-cover rounded"
+                              />
+                            ) : (
+                              <Shirt className="h-6 w-6 text-muted-foreground dark:text-gray-400" />
+                            )}
                           </div>
                           <div className="flex-1">
-                            <h4 className="font-medium">{item.productName}</h4>
+                            <h4 className="font-medium">{item.product_variant.product.name}</h4>
                             <div className="flex items-center gap-2 mt-1">
-                              <Badge variant="secondary">Talle {item.size}</Badge>
+                              <Badge variant="secondary">Talle {item.product_variant.size}</Badge>
                               <span className="text-sm text-muted-foreground">
-                                ${item.unitPrice.toLocaleString()} c/u
+                                ${item.unit_price.toLocaleString()} c/u
                               </span>
                             </div>
                           </div>
@@ -151,7 +211,7 @@ export function EditOrderDialog({ open, onOpenChange, orderItems, onSaveChanges 
                           </div>
 
                           <div className="text-right min-w-[100px]">
-                            <p className="font-semibold">${(item.unitPrice * item.quantity).toLocaleString()}</p>
+                            <p className="font-semibold">${(item.unit_price * item.quantity).toLocaleString()}</p>
                           </div>
 
                           <Button
@@ -194,15 +254,15 @@ export function EditOrderDialog({ open, onOpenChange, orderItems, onSaveChanges 
                       <Label>Producto</Label>
                       <Select value={selectedProductId} onValueChange={setSelectedProductId}>
                         <SelectTrigger>
-                          <SelectValue placeholder="Seleccionar..." />
+                          <SelectValue placeholder={isLoadingProducts ? "Cargando..." : "Seleccionar..."} />
                         </SelectTrigger>
                         <SelectContent>
-                          {mockProducts.map((product) => (
-                            <SelectItem key={product.product_id} value={product.product_id}>
+                          {productVariants.map((variant) => (
+                            <SelectItem key={variant.id} value={variant.id}>
                               <div className="flex flex-col">
-                                <span className="font-medium">{product.name}</span>
+                                <span className="font-medium">{variant.products.name}</span>
                                 <span className="text-sm text-muted-foreground">
-                                  ${getProductPrice(product.product_id).toLocaleString()}
+                                  Talle {variant.size} - ${variant.price.toLocaleString()}
                                 </span>
                               </div>
                             </SelectItem>
@@ -218,11 +278,21 @@ export function EditOrderDialog({ open, onOpenChange, orderItems, onSaveChanges 
                           <SelectValue placeholder="Talle..." />
                         </SelectTrigger>
                         <SelectContent>
-                          {getAvailableSizes(selectedProductId).map((size) => (
-                            <SelectItem key={size} value={size}>
-                              {size}
-                            </SelectItem>
-                          ))}
+                          {(() => {
+                            const selectedVariant = productVariants.find(v => v.id === selectedProductId)
+                            if (!selectedVariant) return []
+                            
+                            // Get all variants for this product
+                            const productVariantsForProduct = productVariants.filter(v => 
+                              v.products.id === selectedVariant.products.id
+                            )
+                            
+                            return productVariantsForProduct.map((variant) => (
+                              <SelectItem key={variant.size} value={variant.size}>
+                                {variant.size} - ${variant.price.toLocaleString()}
+                              </SelectItem>
+                            ))
+                          })()}
                         </SelectContent>
                       </Select>
                     </div>

@@ -12,7 +12,6 @@ export default function DashboardLayout({
 }: {
   children: React.ReactNode
 }) {
-  console.log('dashboard layout ------->')
   return (
     <ProtectedRoute>
       <SidebarProvider defaultOpen={true}>

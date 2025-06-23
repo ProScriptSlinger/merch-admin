@@ -31,117 +31,36 @@ import {
   Camera,
   CameraOff,
 } from "lucide-react"
-import { mockDemoOrders, type OrderItem } from "@/lib/data"
+import QrReader from "react-qr-reader-es6"
+import { getOrderByQRCode, getOrders, updateOrder, type OrderWithDetails } from "@/lib/services/orders"
 import { EditOrderDialog } from "./edit-order-dialog"
 import { OrderGenerator } from "./order-generator"
+import Image from "next/image"
 
 export default function ScanPage() {
   const [qrCode, setQrCode] = useState("")
-  const [scannedOrder, setScannedOrder] = useState<any>(null)
+  const [scannedOrder, setScannedOrder] = useState<OrderWithDetails | null>(null)
   const [message, setMessage] = useState("")
   const [messageType, setMessageType] = useState<"success" | "error" | "info">("info")
   const [showEditDialog, setShowEditDialog] = useState(false)
-  const [orderStatus, setOrderStatus] = useState<"pending" | "confirmed" | "cancelled">("pending")
+  const [orderStatus, setOrderStatus] = useState<"pending" | "delivered" | "cancelled">("pending")
   const [activeTab, setActiveTab] = useState("delivery")
   const [isScanning, setIsScanning] = useState(false)
   const [scannerError, setScannerError] = useState("")
-  const videoRef = useRef<HTMLVideoElement>(null)
-  const streamRef = useRef<MediaStream | null>(null)
-
-  // Cleanup camera stream on unmount
+  const [isLoading, setIsLoading] = useState(false)
+  const [orders, setOrders] = useState<OrderWithDetails[]>([])
   useEffect(() => {
-    return () => {
-      if (streamRef.current) {
-        streamRef.current.getTracks().forEach((track) => track.stop())
-      }
+    const fetchOrders = async () => {
+      const orders = await getOrders()
+      console.log(orders)
+      setOrders(orders)
     }
+    fetchOrders()
   }, [])
 
-  const startCamera = async () => {
-    try {
-      setScannerError("")
-      setIsScanning(true)
 
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: {
-          facingMode: "environment", // Use back camera if available
-          width: { ideal: 1280 },
-          height: { ideal: 720 },
-        },
-      })
 
-      streamRef.current = stream
-      if (videoRef.current) {
-        videoRef.current.srcObject = stream
-        videoRef.current.play()
-      }
-
-      // Start QR detection
-      startQRDetection()
-    } catch (error) {
-      console.error("Error accessing camera:", error)
-      setScannerError("No se pudo acceder a la cámara. Verifica los permisos.")
-      setIsScanning(false)
-    }
-  }
-
-  const stopCamera = () => {
-    if (streamRef.current) {
-      streamRef.current.getTracks().forEach((track) => track.stop())
-      streamRef.current = null
-    }
-    if (videoRef.current) {
-      videoRef.current.srcObject = null
-    }
-    setIsScanning(false)
-    setScannerError("")
-  }
-
-  const startQRDetection = () => {
-    if (!videoRef.current) return
-
-    const canvas = document.createElement("canvas")
-    const context = canvas.getContext("2d")
-
-    const detectQR = () => {
-      if (!videoRef.current || !context || !isScanning) return
-
-      const video = videoRef.current
-      if (video.readyState === video.HAVE_ENOUGH_DATA) {
-        canvas.width = video.videoWidth
-        canvas.height = video.videoHeight
-        context.drawImage(video, 0, 0, canvas.width, canvas.height)
-
-        // Simple QR detection simulation
-        // In a real implementation, you would use a QR detection library here
-        // For now, we'll simulate detection after a few seconds
-        setTimeout(() => {
-          if (isScanning) {
-            // Simulate finding a QR code (you can replace this with actual QR detection)
-            const demoQRs = mockDemoOrders.map((order) => order.qrCode)
-            const randomQR = demoQRs[Math.floor(Math.random() * demoQRs.length)]
-
-            // For demo purposes, we'll "detect" a random QR after 3 seconds
-            // In production, replace this with actual QR detection library
-            if (Math.random() > 0.7) {
-              // 30% chance to "detect" QR
-              setQrCode(randomQR)
-              stopCamera()
-              handleQRSubmit(randomQR)
-            }
-          }
-        }, 1000)
-      }
-
-      if (isScanning) {
-        requestAnimationFrame(detectQR)
-      }
-    }
-
-    detectQR()
-  }
-
-  const handleQRSubmit = (codeToProcess?: string) => {
+  const handleQRSubmit = async (codeToProcess?: string) => {
     const code = codeToProcess || qrCode
 
     if (!code.trim()) {
@@ -152,36 +71,79 @@ export default function ScanPage() {
 
     // Reset previous states
     setScannedOrder(null)
+    setIsLoading(true)
 
-    // Buscar pedido por QR code
-    const order = mockDemoOrders.find((o) => o.qrCode === code.trim())
-    if (order) {
-      setScannedOrder({ ...order })
-      setOrderStatus("pending")
-      setMessage("✅ Pedido encontrado - Revisa los detalles y selecciona una acción")
-      setMessageType("success")
-      setActiveTab("delivery")
-      return
+    try {
+      // Buscar pedido por QR code en Supabase
+      const order = await getOrderByQRCode(code.trim())
+
+      if (order) {
+        setScannedOrder(order)
+        setOrderStatus(order.status as "pending" | "delivered" | "cancelled")
+        setMessage("✅ Pedido encontrado - Revisa los detalles y selecciona una acción")
+        setMessageType("success")
+        setActiveTab("delivery")
+        return
+      }
+
+      // No se encontró nada
+      setMessage("❌ Código QR no válido - No se encontró ningún pedido con este código")
+      setMessageType("error")
+    } catch (error) {
+      console.error("Error fetching order:", error)
+      setMessage("❌ Error al buscar el pedido - Intenta nuevamente")
+      setMessageType("error")
+    } finally {
+      setIsLoading(false)
     }
-
-    // No se encontró nada
-    setMessage("❌ Código QR no válido - No se encontró ningún pedido con este código")
-    setMessageType("error")
   }
 
-  const handleConfirmDelivery = () => {
-    setOrderStatus("confirmed")
-    setMessage("🎉 ✅ Entrega registrada con éxito.")
-    setMessageType("success")
+  const handleConfirmDelivery = async () => {
+    if (!scannedOrder) return
+
+    setIsLoading(true)
+    try {
+      // Update order status in Supabase
+      await updateOrder(scannedOrder.id, {
+        status: "delivered",
+        delivery_timestamp: new Date().toISOString(),
+      })
+
+      setOrderStatus("delivered")
+      setMessage("🎉 ✅ Entrega registrada con éxito.")
+      setMessageType("success")
+    } catch (error) {
+      console.error("Error updating order:", error)
+      setMessage("❌ Error al confirmar la entrega - Intenta nuevamente")
+      setMessageType("error")
+    } finally {
+      setIsLoading(false)
+    }
   }
 
-  const handleCancelDelivery = () => {
-    setOrderStatus("cancelled")
-    setMessage("❌ Entrega cancelada.")
-    setMessageType("error")
+  const handleCancelDelivery = async () => {
+    if (!scannedOrder) return
+
+    setIsLoading(true)
+    try {
+      // Update order status in Supabase
+      await updateOrder(scannedOrder.id, {
+        status: "cancelled",
+      })
+
+      setOrderStatus("cancelled")
+      setMessage("❌ Entrega cancelada.")
+      setMessageType("error")
+    } catch (error) {
+      console.error("Error cancelling order:", error)
+      setMessage("❌ Error al cancelar la entrega - Intenta nuevamente")
+      setMessageType("error")
+    } finally {
+      setIsLoading(false)
+    }
   }
 
-  const handleSaveOrderChanges = (updatedItems: OrderItem[]) => {
+  const handleSaveOrderChanges = (updatedItems: any[]) => {
     if (scannedOrder) {
       setScannedOrder({
         ...scannedOrder,
@@ -197,18 +159,18 @@ export default function ScanPage() {
     setScannedOrder(null)
     setMessage("")
     setOrderStatus("pending")
-    stopCamera()
+    setIsScanning(false)
   }
 
   const calculateTotal = () => {
     return (
-      scannedOrder?.items.reduce((total: number, item: OrderItem) => total + item.unitPrice * item.quantity, 0) || 0
+      scannedOrder?.items.reduce((total: number, item: any) => total + item.unit_price * item.quantity, 0) || 0
     )
   }
 
   const getStatusIcon = () => {
     switch (orderStatus) {
-      case "confirmed":
+      case "delivered":
         return <PartyPopper className="h-6 w-6 text-green-600" />
       case "cancelled":
         return <XCircle className="h-6 w-6 text-red-600" />
@@ -219,7 +181,7 @@ export default function ScanPage() {
 
   const getStatusColor = () => {
     switch (orderStatus) {
-      case "confirmed":
+      case "delivered":
         return "bg-green-100 text-green-800 border-green-200 dark:bg-green-950/30 dark:text-green-200 dark:border-green-800"
       case "cancelled":
         return "bg-red-100 text-red-800 border-red-200 dark:bg-red-950/30 dark:text-red-200 dark:border-red-800"
@@ -230,13 +192,135 @@ export default function ScanPage() {
 
   const getStatusText = () => {
     switch (orderStatus) {
-      case "confirmed":
+      case "delivered":
         return "Entregado"
       case "cancelled":
         return "Cancelado"
       default:
         return "Pendiente"
     }
+  }
+
+  const handleQRScan = (result: any) => {
+    if (result && result.text) {
+      setQrCode(result.text)
+      handleQRSubmit(result.text)
+      setIsScanning(false)
+    }
+  }
+
+  const handleScanError = (error: any) => {
+    console.error("QR Scan error:", error)
+
+    // Provide more specific error messages based on the error type
+    let errorMessage = "Error al escanear el código QR."
+
+    if (error.name === 'NotAllowedError' || error.name === 'PermissionDeniedError') {
+      errorMessage = "Acceso a la cámara denegado. Por favor, permite el acceso a la cámara en tu navegador."
+    } else if (error.name === 'NotFoundError' || error.name === 'DevicesNotFoundError') {
+      errorMessage = "No se encontró ninguna cámara. Verifica que tu dispositivo tenga una cámara disponible."
+    } else if (error.name === 'NotReadableError' || error.name === 'TrackStartError') {
+      errorMessage = "La cámara está siendo utilizada por otra aplicación. Cierra otras aplicaciones que usen la cámara."
+    } else if (error.name === 'OverconstrainedError' || error.name === 'ConstraintNotSatisfiedError') {
+      errorMessage = "La cámara no cumple con los requisitos. Intenta con una cámara diferente."
+    } else if (error.name === 'NotSupportedError') {
+      errorMessage = "Tu navegador no soporta el acceso a la cámara. Intenta con Chrome, Firefox o Safari."
+    } else if (error.message && error.message.includes('getUserMedia')) {
+      errorMessage = "Error al acceder a la cámara. Verifica los permisos del navegador."
+    }
+
+    setScannerError(errorMessage)
+  }
+
+  const checkCameraPermission = async () => {
+    try {
+      // First check if the device has any video input devices
+      const devices = await navigator.mediaDevices.enumerateDevices()
+      const videoDevices = devices.filter(device => device.kind === 'videoinput')
+
+      if (videoDevices.length === 0) {
+        console.log("No video devices found on this device")
+        return { hasPermission: false, error: "No camera found on this device" }
+      }
+
+      console.log(`Found ${videoDevices.length} video device(s):`, videoDevices.map(d => d.label || d.deviceId))
+
+      // Try to get camera access
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: {
+          facingMode: "environment", // Prefer back camera on mobile
+          width: { ideal: 1280 },
+          height: { ideal: 720 }
+        }
+      })
+
+      // Stop the stream immediately after getting permission
+      stream.getTracks().forEach(track => track.stop())
+
+      return { hasPermission: true, error: null }
+    } catch (error: any) {
+      console.error("Camera permission check failed:", error)
+
+      if (error.name === 'NotFoundError' || error.name === 'DevicesNotFoundError') {
+        return { hasPermission: false, error: "No camera found on this device" }
+      } else if (error.name === 'NotAllowedError' || error.name === 'PermissionDeniedError') {
+        return { hasPermission: false, error: "Camera access denied by user" }
+      } else if (error.name === 'NotReadableError' || error.name === 'TrackStartError') {
+        return { hasPermission: false, error: "Camera is being used by another application" }
+      } else if (error.name === 'OverconstrainedError' || error.name === 'ConstraintNotSatisfiedError') {
+        return { hasPermission: false, error: "Camera doesn't meet requirements" }
+      } else if (error.name === 'NotSupportedError') {
+        return { hasPermission: false, error: "Camera not supported in this browser" }
+      } else {
+        return { hasPermission: false, error: "Unknown camera error" }
+      }
+    }
+  }
+
+  const getDeviceInfo = () => {
+    const userAgent = navigator.userAgent
+    const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(userAgent)
+    const isDesktop = !isMobile
+
+    return {
+      isMobile,
+      isDesktop,
+      userAgent: userAgent.substring(0, 100) + "...",
+      platform: navigator.platform,
+      vendor: navigator.vendor
+    }
+  }
+
+  const handleStartScanning = async () => {
+    setScannerError("") // Clear previous errors
+
+    // Show loading message
+    setMessage("🔄 Iniciando cámara... Por favor, permite el acceso cuando el navegador lo solicite.")
+    setMessageType("info")
+
+    // Check camera permission first
+    const { hasPermission, error } = await checkCameraPermission()
+    if (!hasPermission) {
+      const deviceInfo = getDeviceInfo()
+      let detailedError = error || "Se requiere permiso para acceder a la cámara."
+
+      if (error?.includes("No camera found")) {
+        detailedError = `No se encontró cámara en este dispositivo (${deviceInfo.platform}). Puedes ingresar el código QR manualmente.`
+      }
+
+      setScannerError(detailedError)
+      setMessage("")
+      return
+    }
+
+    setIsScanning(true)
+    setMessage("✅ Cámara iniciada correctamente. Apunta hacia el código QR.")
+    setMessageType("success")
+
+    // Clear success message after 3 seconds
+    setTimeout(() => {
+      setMessage("")
+    }, 3000)
   }
 
   return (
@@ -285,12 +369,16 @@ export default function ScanPage() {
                   onKeyPress={(e) => e.key === "Enter" && handleQRSubmit()}
                   className="font-mono text-center"
                 />
-                <Button onClick={() => handleQRSubmit()} disabled={!qrCode.trim()} className="px-6">
+                <Button
+                  onClick={() => handleQRSubmit()}
+                  disabled={!qrCode.trim() || isLoading}
+                  className="px-6"
+                >
                   <QrCode className="h-4 w-4 mr-2" />
-                  Buscar
+                  {isLoading ? "Buscando..." : "Buscar"}
                 </Button>
                 <Button
-                  onClick={isScanning ? stopCamera : startCamera}
+                  onClick={() => isScanning ? setIsScanning(false) : handleStartScanning()}
                   variant={isScanning ? "destructive" : "secondary"}
                   className="px-6"
                 >
@@ -307,14 +395,21 @@ export default function ScanPage() {
                   )}
                 </Button>
               </div>
+              <p className="text-xs text-muted-foreground">
+                💡 Si no tienes cámara, puedes ingresar el código QR manualmente en el campo de texto.
+              </p>
             </div>
 
             {/* Camera View */}
             {isScanning && (
               <div className="space-y-4">
                 <div className="relative bg-black rounded-lg overflow-hidden">
-                  <video ref={videoRef} className="w-full h-64 object-cover" autoPlay playsInline muted />
-                  <div className="absolute inset-0 border-2 border-dashed border-white/50 m-8 rounded-lg flex items-center justify-center">
+                  <QrReader
+                    onScan={handleQRScan}
+                    onError={handleScanError}
+                    className="w-full h-64 object-cover"
+                  />
+                  <div className="absolute inset-0 border-2 border-dashed border-white/50 m-8 rounded-lg flex items-center justify-center pointer-events-none">
                     <div className="text-white text-center">
                       <QrCode className="h-12 w-12 mx-auto mb-2 opacity-75" />
                       <p className="text-sm opacity-75">Apunta la cámara hacia el código QR</p>
@@ -325,10 +420,18 @@ export default function ScanPage() {
                     <div className="absolute top-1/2 left-0 right-0 h-0.5 bg-red-500 animate-pulse"></div>
                   </div>
                 </div>
-                <div className="text-center">
+                <div className="text-center space-y-2">
                   <p className="text-sm text-muted-foreground">
                     📱 Posiciona el código QR dentro del marco para escanearlo automáticamente
                   </p>
+                  <div className="bg-blue-50 dark:bg-blue-950/30 p-3 rounded-lg border border-blue-200 dark:border-blue-800">
+                    <p className="text-xs text-blue-800 dark:text-blue-200">
+                      💡 <strong>Consejos:</strong> Asegúrate de que la cámara esté bien iluminada y el código QR esté limpio y visible.
+                    </p>
+                    <p className="text-xs text-blue-700 dark:text-blue-300 mt-1">
+                      🌐 <strong>Compatibilidad:</strong> Funciona mejor en Chrome, Firefox y Safari. Asegúrate de usar HTTPS en producción.
+                    </p>
+                  </div>
                 </div>
               </div>
             )}
@@ -337,7 +440,14 @@ export default function ScanPage() {
             {scannerError && (
               <Alert className="border-red-200 bg-red-50 dark:border-red-800 dark:bg-red-950/30">
                 <AlertCircle className="h-4 w-4 text-red-600 dark:text-red-400" />
-                <AlertDescription className="text-red-800 dark:text-red-200">{scannerError}</AlertDescription>
+                <AlertDescription className="text-red-800 dark:text-red-200">
+                  {scannerError}
+                  {scannerError.includes("No camera found") && (
+                    <div className="mt-2 text-sm">
+                      💡 <strong>Alternativa:</strong> Puedes ingresar el código QR manualmente en el campo de texto arriba.
+                    </div>
+                  )}
+                </AlertDescription>
               </Alert>
             )}
 
@@ -346,7 +456,7 @@ export default function ScanPage() {
               <div className="flex items-center gap-2 mb-3">
                 <Package className="h-4 w-4 text-blue-600 dark:text-blue-400" />
                 <p className="text-sm font-medium text-blue-900 dark:text-blue-100">
-                  Códigos QR Demo - Haz clic para probar:
+                  Códigos QR - Haz clic para probar:
                 </p>
               </div>
 
@@ -355,22 +465,20 @@ export default function ScanPage() {
                   📦 PEDIDOS (Para Entrega):
                 </p>
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
-                  {mockDemoOrders.map((order) => (
+                  {orders.map((order) => (
                     <Button
-                      key={order.qrCode}
+                      key={order.qr_code}
                       variant="outline"
                       size="sm"
-                      onClick={() => setQrCode(order.qrCode)}
+                      onClick={() => {
+                        setQrCode(order.qr_code || "")
+                        handleQRSubmit(order.qr_code || "")
+                      }}
                       className="flex flex-col h-auto p-3 text-xs border-blue-200 dark:border-blue-700 hover:bg-blue-50 dark:hover:bg-blue-950/50"
                     >
-                      <code className="font-mono font-bold text-blue-600 dark:text-blue-400">{order.qrCode}</code>
-                      <span className="text-muted-foreground mt-1">{order.customerName}</span>
-                      <span className="text-xs text-muted-foreground">
-                        $
-                        {order.items
-                          .reduce((total, item) => total + item.unitPrice * item.quantity, 0)
-                          .toLocaleString()}
-                      </span>
+                      <code className="font-mono font-bold text-blue-600 dark:text-blue-400">{order.qr_code}</code>
+                      <Badge variant={'outline'} className={`text-muted-foreground mt-1 ${order.status === "delivered" ? "text-green-600" : order.status === "cancelled" ? "text-red-600" : "text-blue-600"}`}>Status: {order.status}</Badge>
+                      <span className="text-muted-foreground mt-1">Stand: {order.stand?.name}</span>
                     </Button>
                   ))}
                 </div>
@@ -388,13 +496,12 @@ export default function ScanPage() {
                 }
               >
                 <AlertCircle
-                  className={`h-4 w-4 ${
-                    messageType === "error"
+                  className={`h-4 w-4 ${messageType === "error"
                       ? "text-red-600 dark:text-red-400"
                       : messageType === "success"
                         ? "text-green-600 dark:text-green-400"
                         : "text-blue-600 dark:text-blue-400"
-                  }`}
+                    }`}
                 />
                 <AlertDescription
                   className={
@@ -446,11 +553,11 @@ export default function ScanPage() {
                     </h3>
                     <div className="space-y-2 pl-7">
                       <div className="flex items-center gap-2">
-                        <span className="font-medium">{scannedOrder.customerName}</span>
+                        <span className="font-medium">{scannedOrder.customer_name}</span>
                       </div>
                       <div className="flex items-center gap-2">
                         <Mail className="h-4 w-4 text-muted-foreground" />
-                        <span className="text-sm">{scannedOrder.customerEmail}</span>
+                        <span className="text-sm">{scannedOrder.customer_email}</span>
                       </div>
                       <div className="flex items-center gap-2">
                         <Hash className="h-4 w-4 text-muted-foreground" />
@@ -466,13 +573,13 @@ export default function ScanPage() {
                     <div className="space-y-2 pl-7">
                       <div className="flex items-center gap-2">
                         <Clock className="h-4 w-4 text-muted-foreground" />
-                        <span className="text-sm">{new Date(scannedOrder.orderDate).toLocaleString()}</span>
+                        <span className="text-sm">{new Date(scannedOrder.created_at).toLocaleString()}</span>
                       </div>
                       <div className="flex items-center">
                         <CreditCard className="h-4 w-4 mr-2 text-gray-500" />
                         <span className="text-sm text-gray-600">
                           Método de pago:{" "}
-                          <Badge variant="outline">{scannedOrder.paymentMethod || "No especificado"}</Badge>
+                          <Badge variant="outline">{scannedOrder.payment_method || "No especificado"}</Badge>
                         </span>
                       </div>
                       <div className="flex items-center gap-2">
@@ -492,23 +599,33 @@ export default function ScanPage() {
                     Productos ({scannedOrder.items.length} items)
                   </h3>
                   <div className="grid gap-4">
-                    {scannedOrder.items.map((item: OrderItem, index: number) => (
+                    {scannedOrder.items.map((item: any, index: number) => (
                       <div
                         key={item.id}
                         className="flex items-center gap-4 p-4 border rounded-lg bg-gray-50/50 dark:bg-gray-800/50 border-gray-200 dark:border-gray-700"
                       >
                         <div className="w-16 h-16 bg-white dark:bg-gray-700 rounded-lg flex items-center justify-center border-2 border-dashed border-gray-300 dark:border-gray-600">
-                          <Shirt className="h-8 w-8 text-gray-400 dark:text-gray-500" />
+                          {item?.product_variant?.product?.images && item.product_variant.product.images.length > 0 ? (
+                            <Image
+                              src={item.product_variant.product.images[0].image_url}
+                              alt={item.product_variant.product.name}
+                              width={64}
+                              height={64}
+                              className="object-cover rounded"
+                            />
+                          ) : (
+                            <Shirt className="h-8 w-8 text-gray-400 dark:text-gray-500" />
+                          )}
                         </div>
                         <div className="flex-1">
-                          <h4 className="font-medium text-lg">{item.productName}</h4>
+                          <h4 className="font-medium text-lg">{item.product_variant.product.name}</h4>
                           <div className="flex items-center gap-4 mt-1">
-                            <Badge variant="secondary">Talle {item.size}</Badge>
+                            <Badge variant="secondary">Talle {item.product_variant.size}</Badge>
                             <Badge variant="secondary">Cantidad: {item.quantity}</Badge>
-                            <span className="text-sm font-medium">${item.unitPrice.toLocaleString()} c/u</span>
+                            <span className="text-sm font-medium">${item.unit_price.toLocaleString()} c/u</span>
                           </div>
                           <p className="text-sm text-muted-foreground mt-1">
-                            Subtotal: ${(item.unitPrice * item.quantity).toLocaleString()}
+                            Subtotal: ${(item.unit_price * item.quantity).toLocaleString()}
                           </p>
                         </div>
                       </div>
@@ -536,16 +653,20 @@ export default function ScanPage() {
                     <div className="flex flex-col sm:flex-row gap-3">
                       <Button
                         onClick={handleConfirmDelivery}
+                        disabled={isLoading}
                         className="flex-1 h-12 text-lg font-semibold bg-green-600 hover:bg-green-700"
                       >
-                        <CheckCircle className="h-5 w-5 mr-2" />✅ Confirmar Entrega
+                        <CheckCircle className="h-5 w-5 mr-2" />
+                        {isLoading ? "Procesando..." : "✅ Confirmar Entrega"}
                       </Button>
                       <Button
                         onClick={handleCancelDelivery}
+                        disabled={isLoading}
                         variant="destructive"
                         className="flex-1 h-12 text-lg font-semibold"
                       >
-                        <X className="h-5 w-5 mr-2" />❌ Cancelar Entrega
+                        <X className="h-5 w-5 mr-2" />
+                        {isLoading ? "Procesando..." : "❌ Cancelar Entrega"}
                       </Button>
                       <Button
                         onClick={() => setShowEditDialog(true)}
@@ -567,11 +688,11 @@ export default function ScanPage() {
                       <div className="flex items-center justify-center gap-3">
                         {getStatusIcon()}
                         <span className="text-xl font-semibold">
-                          {orderStatus === "confirmed" ? "¡Entrega Completada!" : "Entrega Cancelada"}
+                          {orderStatus === "delivered" ? "¡Entrega Completada!" : "Entrega Cancelada"}
                         </span>
                       </div>
                       <p className="text-center mt-2 opacity-80">
-                        {orderStatus === "confirmed"
+                        {orderStatus === "delivered"
                           ? "El pedido ha sido entregado exitosamente al cliente."
                           : "La entrega del pedido ha sido cancelada."}
                       </p>
@@ -594,7 +715,7 @@ export default function ScanPage() {
         </TabsContent>
 
         <TabsContent value="payment" className="space-y-6">
-          <OrderGenerator />
+          <OrderGenerator setOrders={setOrders}/>
         </TabsContent>
       </Tabs>
 

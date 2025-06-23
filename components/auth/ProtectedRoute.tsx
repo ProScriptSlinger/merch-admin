@@ -16,9 +16,6 @@ export default function ProtectedRoute({
 }: ProtectedRouteProps) {
   const { user, userProfile, isLoading } = useApp()
   const router = useRouter()
-  console.log('user ------->', user)
-  console.log('userProfile ------->', userProfile)
-  console.log('isLoading ------->', isLoading)
   useEffect(() => {
     if (!isLoading && !user) {
       router.push('/auth')

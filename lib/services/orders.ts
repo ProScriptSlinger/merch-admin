@@ -13,6 +13,14 @@ export interface OrderWithDetails extends Order {
       product: {
         id: string
         name: string
+        images: Array<{
+          id: string
+          product_id: string
+          image_url: string
+          is_primary: boolean
+          sort_order: number
+          created_at: string
+        }>
       }
     }
   })[]
@@ -59,10 +67,14 @@ export async function getOrders(): Promise<OrderWithDetails[]> {
         *,
         product_variant:product_variants(
           *,
-          product:products(id, name)
+          product:products(
+            id, 
+            name,
+            images:product_images(*)
+          )
         )
       ),
-      stand:stands(*),
+      stand:stands!stand_id(*),
       delivered_by_stand:stands!delivered_by_stand_id(*),
       user:users(*)
     `)
@@ -85,10 +97,14 @@ export async function getOrder(id: string): Promise<OrderWithDetails | null> {
         *,
         product_variant:product_variants(
           *,
-          product:products(id, name)
+          product:products(
+            id, 
+            name,
+            images:product_images(*)
+          )
         )
       ),
-      stand:stands(*),
+      stand:stands!stand_id(*),
       delivered_by_stand:stands!delivered_by_stand_id(*),
       user:users(*)
     `)
@@ -224,10 +240,14 @@ export async function getOrdersByUser(userId: string): Promise<OrderWithDetails[
         *,
         product_variant:product_variants(
           *,
-          product:products(id, name)
+          product:products(
+            id, 
+            name,
+            images:product_images(*)
+          )
         )
       ),
-      stand:stands(*),
+      stand:stands!stand_id(*),
       delivered_by_stand:stands!delivered_by_stand_id(*),
       user:users(*)
     `)
@@ -251,10 +271,14 @@ export async function getOrdersByStatus(status: Order['status']): Promise<OrderW
         *,
         product_variant:product_variants(
           *,
-          product:products(id, name)
+          product:products(
+            id, 
+            name,
+            images:product_images(*)
+          )
         )
       ),
-      stand:stands(*),
+      stand:stands!stand_id(*),
       delivered_by_stand:stands!delivered_by_stand_id(*),
       user:users(*)
     `)
@@ -278,10 +302,14 @@ export async function getOrderByQRCode(qrCode: string): Promise<OrderWithDetails
         *,
         product_variant:product_variants(
           *,
-          product:products(id, name)
+          product:products(
+            id, 
+            name,
+            images:product_images(*)
+          )
         )
       ),
-      stand:stands(*),
+      stand:stands!stand_id(*),
       delivered_by_stand:stands!delivered_by_stand_id(*),
       user:users(*)
     `)
