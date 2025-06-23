@@ -63,12 +63,12 @@ export function AppSidebar() {
           <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary text-primary-foreground">
             <Package className="h-6 w-6" />
           </div>
-          {sidebarState === "expanded" && (
+          {/* {sidebarState === "expanded" && (
             <div>
               <h1 className="text-xl font-bold text-sidebar-foreground">Merch Admin</h1>
               <p className="text-sm text-sidebar-foreground/60">Event Management</p>
             </div>
-          )}
+          )} */}
         </div>
       </SidebarHeader>
 
@@ -86,7 +86,7 @@ export function AppSidebar() {
                   >
                     <Link href={item.href} className="flex items-center gap-3">
                       <item.icon className="h-5 w-5 flex-shrink-0" />
-                      <span className="font-medium">{item.title}</span>
+                      {/* <span className="font-medium">{item.title}</span> */}
                     </Link>
                   </SidebarMenuButton>
                 </SidebarMenuItem>
@@ -104,7 +104,7 @@ export function AppSidebar() {
               className="h-12 px-4 rounded-lg transition-all duration-200 hover:bg-sidebar-accent/50"
             >
               <Settings className="h-5 w-5" />
-              <span className="font-medium">Settings</span>
+              {/* <span className="font-medium">Settings</span> */}
             </SidebarMenuButton>
           </SidebarMenuItem>
           {/* <SidebarMenuItem>
