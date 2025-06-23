@@ -407,7 +407,7 @@ export default function ScanPage() {
                   <QrReader
                     onScan={handleQRScan}
                     onError={handleScanError}
-                    className="w-full h-64 object-cover"
+                    className="w-64 h-64 object-cover"
                   />
                   <div className="absolute inset-0 border-2 border-dashed border-white/50 m-8 rounded-lg flex items-center justify-center pointer-events-none">
                     <div className="text-white text-center">
