@@ -202,9 +202,9 @@ export default function ScanPage() {
   }
 
   const handleQRScan = (result: any) => {
-    if (result && result.text) {
-      setQrCode(result.text)
-      handleQRSubmit(result.text)
+    if (result) {
+      setQrCode(result)
+      handleQRSubmit(result)
       setIsScanning(false)
     }
   }
@@ -402,22 +402,24 @@ export default function ScanPage() {
 
             {/* Camera View */}
             {isScanning && (
-              <div className="space-y-4">
-                <div className="relative bg-black rounded-lg overflow-hidden">
-                  <QrReader
-                    onScan={handleQRScan}
-                    onError={handleScanError}
-                    className="w-64 h-64 object-cover"
-                  />
-                  <div className="absolute inset-0 border-2 border-dashed border-white/50 m-8 rounded-lg flex items-center justify-center pointer-events-none">
-                    <div className="text-white text-center">
-                      <QrCode className="h-12 w-12 mx-auto mb-2 opacity-75" />
-                      <p className="text-sm opacity-75">Apunta la cámara hacia el código QR</p>
+              <div className="space-y-4 ">
+                <div className="flex justify-center">
+                  <div className="relative bg-black rounded-lg overflow-hidden w-[400px] h-[400px] text-center">
+                    <QrReader
+                      onScan={handleQRScan}
+                      onError={handleScanError}
+                      className="w-[400px] h-[400px] object-cover"
+                    />
+                    <div className="absolute inset-0 border-2 border-dashed border-white/50 m-8 rounded-lg flex items-center justify-center pointer-events-none">
+                      <div className="text-white text-center">
+                        <QrCode className="h-12 w-12 mx-auto mb-2 opacity-75" />
+                        <p className="text-sm opacity-75">Apunta la cámara hacia el código QR</p>
+                      </div>
                     </div>
-                  </div>
-                  {/* Scanning animation overlay */}
-                  <div className="absolute inset-0 pointer-events-none">
-                    <div className="absolute top-1/2 left-0 right-0 h-0.5 bg-red-500 animate-pulse"></div>
+                    {/* Scanning animation overlay */}
+                    <div className="absolute inset-0 pointer-events-none">
+                      <div className="absolute top-1/2 left-0 right-0 h-0.5 bg-red-500 animate-pulse"></div>
+                    </div>
                   </div>
                 </div>
                 <div className="text-center space-y-2">
