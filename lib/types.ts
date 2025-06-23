@@ -36,7 +36,7 @@ export interface DemoOrder {
 }
 
 // Tipo para métodos de pago
-export type PaymentMethod = "POS" | "Efectivo" | "QR_MercadoPago" | "Transferencia"
+export type PaymentMethod = "card" | "cash" 
 
 // Update the Sale interface to include payment method and validation
 export interface Sale {

@@ -3,7 +3,7 @@
 import { Label } from "@/components/ui/label"
 import Link from "next/link"
 
-import { useState, useMemo } from "react"
+import { useState, useMemo, useEffect } from "react"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Input } from "@/components/ui/input"
@@ -26,9 +26,24 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import { useToast } from "@/hooks/use-toast"
-import { mockSales, mockProducts, mockStands } from "@/lib/data"
-import type { Sale, PaymentMethod } from "@/lib/types"
+import type { PaymentMethod } from "@/lib/types"
 import { EditOrderDialog } from "../scan/edit-order-dialog"
+import {
+  getSales,
+  getSalesStats,
+  markSaleAsDelivered,
+  validatePayment,
+  processReturn,
+  cancelSale,
+  updateSaleItems,
+  type SaleWithDetails,
+  type SalesFilters,
+  type SalesStats,
+} from "@/lib/services/sales"
+import { getProducts } from "@/lib/services/products"
+import { getStands } from "@/lib/services/stands"
+import type { ProductWithDetails } from "@/lib/services/products"
+import type { Stand } from "@/lib/types"
 import {
   Download,
   Filter,
@@ -48,269 +63,211 @@ import {
   ExternalLink,
   Edit,
   Trash2,
+  Loader2,
 } from "lucide-react"
 
 export default function SalesPage() {
-  const [sales, setSales] = useState<Sale[]>(JSON.parse(JSON.stringify(mockSales))) // Deep copy for mutation
-  const [filters, setFilters] = useState({
+  const [sales, setSales] = useState<SaleWithDetails[]>([])
+  const [products, setProducts] = useState<ProductWithDetails[]>([])
+  const [stands, setStands] = useState<Stand[]>([])
+  const [stats, setStats] = useState<SalesStats>({
+    totalSales: 0,
+    totalProducts: 0,
+    validatedSales: 0,
+    pendingValidation: 0,
+    returnedSales: 0,
+    cashOrdersPending: 0,
+    totalSalesCount: 0,
+  })
+  const [isLoading, setIsLoading] = useState(true)
+  const [filters, setFilters] = useState<SalesFilters>({
     email: "",
     productId: "all",
-    standId: "all", // Can be POS stand or delivery stand
-    saleType: "all" as "all" | "POS" | "Online",
-    status: "all" as "all" | "Pending" | "Delivered",
-    paymentMethod: "all" as "all" | PaymentMethod,
-    paymentValidated: "all" as "all" | "validated" | "pending",
+    standId: "all",
+    saleType: "all",
+    status: "all",
+    paymentMethod: "all",
+    paymentValidated: "all",
     dateFrom: "",
     dateTo: "",
   })
-  const [viewingSaleDetails, setViewingSaleDetails] = useState<Sale | null>(null)
-  const [confirmingDeliverySale, setConfirmingDeliverySale] = useState<Sale | null>(null)
-  const [validatingPaymentSale, setValidatingPaymentSale] = useState<Sale | null>(null)
-  const [returningOrderSale, setReturningOrderSale] = useState<Sale | null>(null)
-  const [editingOrderSale, setEditingOrderSale] = useState<Sale | null>(null)
-  const [cancellingOrderSale, setCancellingOrderSale] = useState<Sale | null>(null)
+  const [viewingSaleDetails, setViewingSaleDetails] = useState<SaleWithDetails | null>(null)
+  const [confirmingDeliverySale, setConfirmingDeliverySale] = useState<SaleWithDetails | null>(null)
+  const [validatingPaymentSale, setValidatingPaymentSale] = useState<SaleWithDetails | null>(null)
+  const [returningOrderSale, setReturningOrderSale] = useState<SaleWithDetails | null>(null)
+  const [editingOrderSale, setEditingOrderSale] = useState<SaleWithDetails | null>(null)
+  const [cancellingOrderSale, setCancellingOrderSale] = useState<SaleWithDetails | null>(null)
   const [returnReason, setReturnReason] = useState("")
 
   const { toast } = useToast()
 
-  // Calculate stats
-  const stats = useMemo(() => {
-    const totalSales = sales.reduce((sum, sale) => sum + (sale.status !== "Returned" ? sale.totalAmount || 0 : 0), 0)
-    const totalProducts = sales.reduce(
-      (sum, sale) =>
-        sum + (sale.status !== "Returned" ? sale.items.reduce((itemSum, item) => itemSum + item.quantity, 0) : 0),
-      0,
-    )
-    const validatedSales = sales.filter((sale) => sale.paymentValidated && sale.status !== "Returned").length
-    const pendingValidation = sales.filter((sale) => !sale.paymentValidated && sale.status !== "Returned").length
-    const returnedSales = sales.filter((sale) => sale.status === "Returned").length
-    const cashOrdersPending = sales.filter((sale) => sale.paymentMethod === "Efectivo" && !sale.paymentValidated).length
+  // Load initial data
+  useEffect(() => {
+    loadData()
+  }, [])
 
-    return {
-      totalSales,
-      totalProducts,
-      validatedSales,
-      pendingValidation,
-      returnedSales,
-      cashOrdersPending,
-      totalSalesCount: sales.filter((sale) => sale.status !== "Returned").length,
+  const loadData = async () => {
+    setIsLoading(true)
+    try {
+      const [salesData, productsData, standsData, statsData] = await Promise.all([
+        getSales(),
+        getProducts(),
+        getStands(),
+        getSalesStats(),
+      ])
+      
+      setSales(salesData)
+      setProducts(productsData)
+      setStands(standsData)
+      setStats(statsData)
+    } catch (error) {
+      console.error('Error loading data:', error)
+      toast({
+        title: "Error",
+        description: "Error loading sales data. Please try again.",
+        variant: "destructive",
+      })
+    } finally {
+      setIsLoading(false)
     }
-  }, [sales])
+  }
 
-  const filteredSales = useMemo(() => {
-    return sales.filter((sale) => {
-      const saleDate = new Date(sale.saleDate)
-      if (filters.email && !sale.email.toLowerCase().includes(filters.email.toLowerCase())) return false
-      if (filters.productId !== "all" && !sale.items.some((item) => item.productId === filters.productId)) return false
-      if (filters.standId !== "all" && sale.standId !== filters.standId && sale.deliveredByStandId !== filters.standId)
-        return false
-      if (filters.saleType !== "all" && sale.saleType !== filters.saleType) return false
-      if (filters.status !== "all" && sale.status !== filters.status) return false
-      if (filters.paymentMethod !== "all" && sale.paymentMethod !== filters.paymentMethod) return false
-      if (filters.paymentValidated === "validated" && !sale.paymentValidated) return false
-      if (filters.paymentValidated === "pending" && sale.paymentValidated) return false
-      if (filters.dateFrom && saleDate < new Date(filters.dateFrom)) return false
-      if (filters.dateTo && saleDate > new Date(new Date(filters.dateTo).setHours(23, 59, 59, 999))) return false
-      return true
-    })
-  }, [sales, filters])
+  // Reload sales when filters change
+  useEffect(() => {
+    if (!isLoading) {
+      loadFilteredSales()
+    }
+  }, [filters])
 
-  const handleFilterChange = (filterName: keyof typeof filters, value: string) => {
+  const loadFilteredSales = async () => {
+    try {
+      const salesData = await getSales(filters)
+      setSales(salesData)
+    } catch (error) {
+      console.error('Error loading filtered sales:', error)
+      toast({
+        title: "Error",
+        description: "Error loading filtered sales data.",
+        variant: "destructive",
+      })
+    }
+  }
+
+  const handleFilterChange = (filterName: keyof SalesFilters, value: string) => {
     setFilters((prev) => ({ ...prev, [filterName]: value }))
   }
 
-  const handleMarkAsDelivered = (saleId: string) => {
-    setSales((prevSales) =>
-      prevSales.map((sale) =>
-        sale.id === saleId
-          ? {
-              ...sale,
-              status: "Delivered",
-              deliveryTimestamp: new Date().toISOString(),
-              // Potentially set deliveredByStandId if a "current stand" context exists, or leave null for manual override
-            }
-          : sale,
-      ),
-    )
-    toast({
-      title: "Sale Marked as Delivered",
-      description: `Sale ID ${saleId} has been updated.`,
-    })
-    setConfirmingDeliverySale(null)
+  const handleMarkAsDelivered = async (saleId: string) => {
+    try {
+      await markSaleAsDelivered(saleId)
+      await loadData() // Reload data to get updated stats
+      toast({
+        title: "Sale Marked as Delivered",
+        description: `Sale ID ${saleId} has been updated.`,
+      })
+      setConfirmingDeliverySale(null)
+    } catch (error) {
+      console.error('Error marking sale as delivered:', error)
+      toast({
+        title: "Error",
+        description: "Error marking sale as delivered.",
+        variant: "destructive",
+      })
+    }
   }
 
-  const [selectedPaymentMethod, setSelectedPaymentMethod] = useState<PaymentMethod | undefined>(undefined)
+  const [selectedPaymentMethod, setSelectedPaymentMethod] = useState<PaymentMethod | undefined>("card")
 
-  const handleValidatePayment = (saleId: string, newPaymentMethod?: PaymentMethod) => {
-    setSales((prevSales) =>
-      prevSales.map((sale) =>
-        sale.id === saleId
-          ? {
-              ...sale,
-              paymentValidated: true,
-              paymentMethod: newPaymentMethod || sale.paymentMethod,
-            }
-          : sale,
-      ),
-    )
-    toast({
-      title: "Pago Validado",
-      description: `El pago de la venta ${saleId} ha sido validado correctamente con método: ${newPaymentMethod || "original"}.`,
-    })
-    setValidatingPaymentSale(null)
-    setSelectedPaymentMethod(undefined)
+  const handleValidatePayment = async (saleId: string, newPaymentMethod?: PaymentMethod) => {
+    try {
+      await validatePayment(saleId, newPaymentMethod)
+      await loadData() // Reload data to get updated stats
+      toast({
+        title: "Pago Validado",
+        description: `El pago de la venta ${saleId} ha sido validado correctamente con método: ${newPaymentMethod || "original"}.`,
+      })
+      setValidatingPaymentSale(null)
+      setSelectedPaymentMethod(undefined)
+    } catch (error) {
+      console.error('Error validating payment:', error)
+      toast({
+        title: "Error",
+        description: "Error validating payment.",
+        variant: "destructive",
+      })
+    }
   }
 
-  const handleReturnOrder = (saleId: string, reason: string) => {
-    const sale = sales.find((s) => s.id === saleId)
-    if (!sale) return
-
-    setSales((prevSales) =>
-      prevSales.map((sale) =>
-        sale.id === saleId
-          ? {
-              ...sale,
-              status: "Returned",
-              returnRequested: true,
-              returnReason: reason,
-              returnTimestamp: new Date().toISOString(),
-              refundAmount: sale.totalAmount,
-            }
-          : sale,
-      ),
-    )
-
-    // Restore stock for returned items
-    sale.items.forEach((item) => {
-      console.log(`Restoring stock: ${item.quantity} units of ${item.productName}`)
-      // Here you would update the actual product stock in your database
-    })
-
-    toast({
-      title: "Pedido Devuelto",
-      description: `La venta ${saleId} ha sido marcada como devuelta. Stock de ${sale.items.length} productos restaurado.`,
-    })
-    setReturningOrderSale(null)
-    setReturnReason("")
+  const handleReturnOrder = async (saleId: string, reason: string) => {
+    try {
+      await processReturn(saleId, reason)
+      await loadData() // Reload data to get updated stats
+      toast({
+        title: "Pedido Devuelto",
+        description: `La venta ${saleId} ha sido marcada como devuelta. Stock restaurado automáticamente.`,
+      })
+      setReturningOrderSale(null)
+      setReturnReason("")
+    } catch (error) {
+      console.error('Error processing return:', error)
+      toast({
+        title: "Error",
+        description: "Error processing return.",
+        variant: "destructive",
+      })
+    }
   }
 
-  const handleCancelOrder = (saleId: string) => {
-    const sale = sales.find((s) => s.id === saleId)
-    if (!sale) return
-
-    setSales((prevSales) =>
-      prevSales.map((sale) =>
-        sale.id === saleId
-          ? {
-              ...sale,
-              status: "Returned",
-              returnRequested: true,
-              returnReason: "Venta cancelada por administrador",
-              returnTimestamp: new Date().toISOString(),
-              refundAmount: sale.totalAmount,
-            }
-          : sale,
-      ),
-    )
-
-    // Restore stock for cancelled items
-    sale.items.forEach((item) => {
-      console.log(`Restoring stock from cancellation: ${item.quantity} units of ${item.productName}`)
-      // Here you would update the actual product stock in your database
-    })
-
-    toast({
-      title: "Venta Cancelada",
-      description: `La venta ${saleId} ha sido cancelada. Stock de ${sale.items.length} productos restaurado automáticamente.`,
-    })
-    setCancellingOrderSale(null)
+  const handleCancelOrder = async (saleId: string) => {
+    try {
+      await cancelSale(saleId)
+      await loadData() // Reload data to get updated stats
+      toast({
+        title: "Venta Cancelada",
+        description: `La venta ${saleId} ha sido cancelada. Stock restaurado automáticamente.`,
+      })
+      setCancellingOrderSale(null)
+    } catch (error) {
+      console.error('Error cancelling sale:', error)
+      toast({
+        title: "Error",
+        description: "Error cancelling sale.",
+        variant: "destructive",
+      })
+    }
   }
 
-  const handleEditOrder = (sale: Sale) => {
+  const handleEditOrder = (sale: SaleWithDetails) => {
     setEditingOrderSale(sale)
   }
 
-  const handleSaveEditedOrder = (updatedItems: any[]) => {
+  const handleSaveEditedOrder = async (updatedItems: any[]) => {
     if (!editingOrderSale) return
 
-    const originalSale = editingOrderSale
-    const newTotal = updatedItems.reduce((sum, item) => sum + item.quantity * (item.unitPrice || 0), 0)
-
-    // Calculate stock changes
-    const stockChanges: { [productId: string]: number } = {}
-
-    // Calculate what was removed or reduced
-    originalSale.items.forEach((originalItem) => {
-      const updatedItem = updatedItems.find((item) => item.productId === originalItem.productId)
-      if (!updatedItem) {
-        // Item was completely removed - restore full quantity
-        stockChanges[originalItem.productId] = (stockChanges[originalItem.productId] || 0) + originalItem.quantity
-      } else if (updatedItem.quantity < originalItem.quantity) {
-        // Quantity was reduced - restore the difference
-        const difference = originalItem.quantity - updatedItem.quantity
-        stockChanges[originalItem.productId] = (stockChanges[originalItem.productId] || 0) + difference
-      }
-    })
-
-    // Calculate what was added or increased
-    updatedItems.forEach((updatedItem) => {
-      const originalItem = originalSale.items.find((item) => item.productId === updatedItem.productId)
-      if (!originalItem) {
-        // New item was added - reduce stock
-        stockChanges[updatedItem.productId] = (stockChanges[updatedItem.productId] || 0) - updatedItem.quantity
-      } else if (updatedItem.quantity > originalItem.quantity) {
-        // Quantity was increased - reduce stock by the difference
-        const difference = updatedItem.quantity - originalItem.quantity
-        stockChanges[updatedItem.productId] = (stockChanges[updatedItem.productId] || 0) - difference
-      }
-    })
-
-    // Apply stock changes
-    Object.entries(stockChanges).forEach(([productId, change]) => {
-      const product = mockProducts.find((p) => p.product_id === productId)
-      if (product && change !== 0) {
-        console.log(
-          `Stock change for ${product.name}: ${change > 0 ? "+" : ""}${change} (${change > 0 ? "restored" : "reduced"})`,
-        )
-        // Here you would update the actual product stock in your database
-      }
-    })
-
-    // Update the sale
-    setSales((prevSales) =>
-      prevSales.map((sale) =>
-        sale.id === editingOrderSale.id
-          ? {
-              ...sale,
-              items: updatedItems.map((item) => ({
-                productId: item.productId,
-                productName: item.productName,
-                quantity: item.quantity,
-              })),
-              totalAmount: newTotal,
-            }
-          : sale,
-      ),
-    )
-
-    const changesCount = Object.values(stockChanges).filter((change) => change !== 0).length
-    toast({
-      title: "Venta Editada",
-      description: `La venta ${editingOrderSale.id} ha sido actualizada. ${changesCount > 0 ? `Stock de ${changesCount} productos ajustado automáticamente.` : "Sin cambios de stock."}`,
-    })
-    setEditingOrderSale(null)
+    try {
+      await updateSaleItems(editingOrderSale.id, updatedItems)
+      await loadData() // Reload data to get updated stats
+      toast({
+        title: "Venta Editada",
+        description: `La venta ${editingOrderSale.id} ha sido actualizada. Stock ajustado automáticamente.`,
+      })
+      setEditingOrderSale(null)
+    } catch (error) {
+      console.error('Error updating sale items:', error)
+      toast({
+        title: "Error",
+        description: "Error updating sale items.",
+        variant: "destructive",
+      })
+    }
   }
 
   const getPaymentMethodIcon = (method?: PaymentMethod) => {
     switch (method) {
-      case "POS":
+      case "card":
         return <CreditCard className="w-4 h-4" />
-      case "Efectivo":
-        return <Banknote className="w-4 h-4" />
-      case "QR_MercadoPago":
-        return <QrCode className="w-4 h-4" />
-      case "Transferencia":
-        return <ArrowRightLeft className="w-4 h-4" />
+      case "cash":
+          return <Banknote className="w-4 h-4" />
       default:
         return <DollarSign className="w-4 h-4" />
     }
@@ -318,14 +275,10 @@ export default function SalesPage() {
 
   const getPaymentMethodColor = (method?: PaymentMethod) => {
     switch (method) {
-      case "POS":
+      case "card":
         return "bg-blue-500"
-      case "Efectivo":
+      case "cash":
         return "bg-green-500"
-      case "QR_MercadoPago":
-        return "bg-purple-500"
-      case "Transferencia":
-        return "bg-orange-500"
       default:
         return "bg-gray-500"
     }
@@ -348,21 +301,21 @@ export default function SalesPage() {
       "Delivered By Stand",
       "Delivery Timestamp",
     ]
-    const rows = filteredSales.map((s) => [
+    const rows = sales.map((s) => [
       s.id,
-      s.email,
-      s.items.map((item) => `${item.productName} (x${item.quantity})`).join("; "),
+      s.customer_email,
+      s.items.map((item) => `${item.product_variant.product.name} (x${item.quantity})`).join("; "),
       s.items.reduce((sum, item) => sum + item.quantity, 0),
-      s.totalAmount || 0,
-      new Date(s.saleDate).toLocaleString(),
-      s.saleType,
-      s.paymentMethod || "N/A",
-      s.paymentValidated ? "Sí" : "No",
+      s.total_amount || 0,
+      new Date(s.created_at).toLocaleString(),
+      s.sale_type,
+      s.payment_method || "N/A",
+      s.payment_validated ? "Sí" : "No",
       s.status,
-      mockStands.find((stand) => stand.id === s.standId)?.name || "N/A",
-      s.deliveryQrValue || "N/A",
-      mockStands.find((stand) => stand.id === s.deliveredByStandId)?.name || "N/A",
-      s.deliveryTimestamp ? new Date(s.deliveryTimestamp).toLocaleString() : "N/A",
+      stands.find((stand) => stand.id === s.stand_id)?.name || "N/A",
+      s.delivery_qr_value || "N/A",
+      stands.find((stand) => stand.id === s.delivered_by_stand_id)?.name || "N/A",
+      s.delivery_timestamp ? new Date(s.delivery_timestamp).toLocaleString() : "N/A",
     ])
 
     const csvContent =
@@ -375,6 +328,19 @@ export default function SalesPage() {
     document.body.appendChild(link)
     link.click()
     document.body.removeChild(link)
+  }
+
+  if (isLoading) {
+    return (
+      <div className="container mx-auto py-8 space-y-8">
+        <div className="flex items-center justify-center min-h-[400px]">
+          <div className="flex items-center gap-2">
+            <Loader2 className="h-6 w-6 animate-spin" />
+            <span>Loading sales data...</span>
+          </div>
+        </div>
+      </div>
+    )
   }
 
   return (
@@ -461,8 +427,8 @@ export default function SalesPage() {
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">Todos los Productos</SelectItem>
-                {mockProducts.map((p) => (
-                  <SelectItem key={p.product_id} value={p.product_id}>
+                {products.map((p) => (
+                  <SelectItem key={p.id} value={p.id}>
                     {p.name}
                   </SelectItem>
                 ))}
@@ -508,7 +474,7 @@ export default function SalesPage() {
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">Todos los Stands</SelectItem>
-                {mockStands.map((s) => (
+                {stands.map((s) => (
                   <SelectItem key={s.id} value={s.id}>
                     {s.name}
                   </SelectItem>
@@ -536,15 +502,17 @@ export default function SalesPage() {
             <Label htmlFor="status-filter">Estado de Entrega</Label>
             <Select
               value={filters.status}
-              onValueChange={(value) => handleFilterChange("status", value as "all" | "Pending" | "Delivered")}
+              onValueChange={(value) => handleFilterChange("status", value as "all" | "pending" | "delivered" | "cancelled" | "returned")}
             >
               <SelectTrigger id="status-filter">
                 <SelectValue placeholder="Todos los Estados" />
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">Todos los Estados</SelectItem>
-                <SelectItem value="Pending">Pendiente</SelectItem>
-                <SelectItem value="Delivered">Entregada</SelectItem>
+                <SelectItem value="pending">Pendiente</SelectItem>
+                <SelectItem value="delivered">Entregada</SelectItem>
+                <SelectItem value="cancelled">Cancelada</SelectItem>
+                <SelectItem value="returned">Devuelta</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -574,7 +542,7 @@ export default function SalesPage() {
       <Card>
         <CardHeader>
           <CardTitle className="text-lg sm:text-xl">Ventas Registradas</CardTitle>
-          <CardDescription>Mostrando {filteredSales.length} ventas según los filtros aplicados.</CardDescription>
+          <CardDescription>Mostrando {sales.length} ventas según los filtros aplicados.</CardDescription>
         </CardHeader>
         <CardContent className="overflow-x-auto">
           <Table>
@@ -592,28 +560,28 @@ export default function SalesPage() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {filteredSales.map((sale) => (
+              {sales.map((sale) => (
                 <TableRow key={sale.id}>
                   <TableCell className="font-medium">
                     <div className="flex items-center">
                       <Mail className="mr-2 h-4 w-4 text-muted-foreground" />
-                      <span className="truncate max-w-[150px]">{sale.email}</span>
+                      <span className="truncate max-w-[150px]">{sale.customer_email}</span>
                     </div>
                   </TableCell>
                   <TableCell>
                     {sale.items.length === 1
-                      ? `${sale.items[0].productName} (x${sale.items[0].quantity})`
+                      ? `${sale.items[0].product_variant.product.name} (x${sale.items[0].quantity})`
                       : `${sale.items.length} items`}
                   </TableCell>
-                  <TableCell className="font-semibold">${(sale.totalAmount || 0).toLocaleString()}</TableCell>
+                  <TableCell className="font-semibold">${(sale.total_amount || 0).toLocaleString()}</TableCell>
                   <TableCell>
-                    <Badge variant="outline" className={`${getPaymentMethodColor(sale.paymentMethod)} text-white`}>
-                      {getPaymentMethodIcon(sale.paymentMethod)}
-                      <span className="ml-1">{sale.paymentMethod || "N/A"}</span>
+                    <Badge variant="outline" className={`${getPaymentMethodColor(sale?.payment_method || "cash")} text-white`}>
+                      {getPaymentMethodIcon(sale?.payment_method || "cash")}
+                      <span className="ml-1">{sale?.payment_method || "N/A"}</span>
                     </Badge>
                   </TableCell>
                   <TableCell>
-                    {sale.paymentValidated ? (
+                    {sale.payment_validated ? (
                       <Badge variant="default" className="bg-green-500 hover:bg-green-600 text-white">
                         <Check className="mr-1 h-3 w-3" /> Validado
                       </Badge>
@@ -623,21 +591,21 @@ export default function SalesPage() {
                       </Badge>
                     )}
                   </TableCell>
-                  <TableCell>{new Date(sale.saleDate).toLocaleDateString()}</TableCell>
+                  <TableCell>{new Date(sale.created_at).toLocaleDateString()}</TableCell>
                   <TableCell>
-                    <Badge variant={sale.saleType === "Online" ? "secondary" : "outline"}>
+                    <Badge variant={sale.sale_type === "Online" ? "secondary" : "outline"}>
                       <ShoppingBag className="mr-1 h-3 w-3" />
-                      {sale.saleType}
+                      {sale.sale_type}
                     </Badge>
                   </TableCell>
                   <TableCell>
-                    {sale.status === "Delivered" ? (
+                    {sale.status === "delivered" ? (
                       <Badge variant="default" className="bg-green-500 hover:bg-green-600 text-white">
                         <CheckCircle className="mr-1 h-3 w-3" /> Entregada
                       </Badge>
-                    ) : sale.status === "Returned" ? (
+                    ) : sale.status === "returned" || sale.status === "cancelled" ? (
                       <Badge variant="destructive">
-                        <ArrowRightLeft className="mr-1 h-3 w-3" /> Devuelta
+                        <ArrowRightLeft className="mr-1 h-3 w-3" /> {sale.status === "returned" ? "Devuelta" : "Cancelada"}
                       </Badge>
                     ) : (
                       <Badge variant="default">
@@ -648,7 +616,7 @@ export default function SalesPage() {
                   <TableCell className="text-right">
                     <div className="flex items-center gap-2 justify-end">
                       {/* Botones de acción rápida */}
-                      {sale.status !== "Returned" && (
+                      {sale.status !== "returned" && sale.status !== "cancelled" && (
                         <>
                           <Button
                             size="sm"
@@ -659,7 +627,7 @@ export default function SalesPage() {
                             <Edit className="h-3 w-3 mr-1" />
                             Editar
                           </Button>
-                          {sale.status === "Delivered" && (
+                          {sale.status === "delivered" && (
                             <Button
                               size="sm"
                               variant="outline"
@@ -684,22 +652,22 @@ export default function SalesPage() {
                         <DropdownMenuContent align="end">
                           <DropdownMenuLabel>Más Acciones</DropdownMenuLabel>
                           <DropdownMenuItem onClick={() => setViewingSaleDetails(sale)}>Ver Detalles</DropdownMenuItem>
-                          {!sale.paymentValidated && (
+                          {!sale.payment_validated && (
                             <DropdownMenuItem
                               onClick={() => {
                                 setValidatingPaymentSale(sale)
-                                setSelectedPaymentMethod(sale.paymentMethod)
+                                setSelectedPaymentMethod(sale?.payment_method || "card")
                               }}
                             >
                               Validar Pago
                             </DropdownMenuItem>
                           )}
-                          {sale.status === "Pending" && (
+                          {sale.status === "pending" && (
                             <DropdownMenuItem onClick={() => setConfirmingDeliverySale(sale)}>
                               Marcar como Entregada
                             </DropdownMenuItem>
                           )}
-                          {sale.status !== "Returned" && (
+                          {sale.status !== "returned" && sale.status !== "cancelled" && (
                             <DropdownMenuItem
                               onClick={() => setCancellingOrderSale(sale)}
                               className="text-red-600 focus:text-red-600"
@@ -714,7 +682,7 @@ export default function SalesPage() {
                   </TableCell>
                 </TableRow>
               ))}
-              {filteredSales.length === 0 && (
+              {sales.length === 0 && (
                 <TableRow>
                   <TableCell colSpan={9} className="text-center text-muted-foreground py-8">
                     No se encontraron ventas con los filtros actuales.
@@ -726,8 +694,8 @@ export default function SalesPage() {
         </CardContent>
         <CardFooter>
           <div className="text-xs text-muted-foreground">
-            Total de ventas mostradas: <strong>{filteredSales.length}</strong> | Total en ventas:{" "}
-            <strong>${filteredSales.reduce((sum, sale) => sum + (sale.totalAmount || 0), 0).toLocaleString()}</strong>
+            Total de ventas mostradas: <strong>{sales.length}</strong> | Total en ventas:{" "}
+            <strong>${sales.reduce((sum, sale) => sum + (sale.total_amount || 0), 0).toLocaleString()}</strong>
           </div>
         </CardFooter>
       </Card>
@@ -738,7 +706,7 @@ export default function SalesPage() {
           <DialogHeader>
             <DialogTitle>Detalles de la Venta - {viewingSaleDetails?.id}</DialogTitle>
             <DialogDescription>
-              Email: {viewingSaleDetails?.email} | Tipo: {viewingSaleDetails?.saleType} | Estado:{" "}
+              Email: {viewingSaleDetails?.customer_email} | Tipo: {viewingSaleDetails?.sale_type} | Estado:{" "}
               {viewingSaleDetails?.status}
             </DialogDescription>
           </DialogHeader>
@@ -747,28 +715,28 @@ export default function SalesPage() {
             {viewingSaleDetails?.items.map((item, index) => (
               <div key={index} className="flex justify-between">
                 <span>
-                  {item.productName} (ID: {item.productId})
+                  {item.product_variant.product.name} (Talle: {item.product_variant.size})
                 </span>
-                <span>x {item.quantity}</span>
+                <span>x {item.quantity} - ${item.unit_price}</span>
               </div>
             ))}
             <hr className="my-2" />
             <p>
-              <strong>Total:</strong> ${(viewingSaleDetails?.totalAmount || 0).toLocaleString()}
+              <strong>Total:</strong> ${(viewingSaleDetails?.total_amount || 0).toLocaleString()}
             </p>
             <p>
               <strong>Método de Pago:</strong>
               <Badge
                 variant="outline"
-                className={`ml-2 ${getPaymentMethodColor(viewingSaleDetails?.paymentMethod)} text-white`}
+                className={`ml-2 ${getPaymentMethodColor(viewingSaleDetails?.payment_method || "cash")} text-white`}
               >
-                {getPaymentMethodIcon(viewingSaleDetails?.paymentMethod)}
-                <span className="ml-1">{viewingSaleDetails?.paymentMethod || "N/A"}</span>
+                {getPaymentMethodIcon(viewingSaleDetails?.payment_method || "cash")}
+                <span className="ml-1">{viewingSaleDetails?.payment_method || "N/A"}</span>
               </Badge>
             </p>
             <p>
               <strong>Pago Validado:</strong>
-              {viewingSaleDetails?.paymentValidated ? (
+              {viewingSaleDetails?.payment_validated ? (
                 <Badge variant="default" className="ml-2 bg-green-500 text-white">
                   <Check className="mr-1 h-3 w-3" /> Sí
                 </Badge>
@@ -780,28 +748,28 @@ export default function SalesPage() {
             </p>
             <p>
               <strong>Fecha Venta:</strong>{" "}
-              {viewingSaleDetails?.saleDate ? new Date(viewingSaleDetails.saleDate).toLocaleString() : "N/A"}
+              {viewingSaleDetails?.created_at ? new Date(viewingSaleDetails.created_at).toLocaleString() : "N/A"}
             </p>
-            {viewingSaleDetails?.standId && (
+            {viewingSaleDetails?.stand_id && (
               <p>
                 <strong>Stand (POS):</strong>{" "}
-                {mockStands.find((s) => s.id === viewingSaleDetails.standId)?.name || "N/A"}
+                {stands.find((s) => s.id === viewingSaleDetails.stand_id)?.name || "N/A"}
               </p>
             )}
-            {viewingSaleDetails?.deliveryQrValue && (
+            {viewingSaleDetails?.delivery_qr_value && (
               <p>
-                <strong>QR de Entrega:</strong> {viewingSaleDetails.deliveryQrValue}
+                <strong>QR de Entrega:</strong> {viewingSaleDetails.delivery_qr_value}
               </p>
             )}
-            {viewingSaleDetails?.deliveredByStandId && (
+            {viewingSaleDetails?.delivered_by_stand_id && (
               <p>
                 <strong>Entregado por Stand:</strong>{" "}
-                {mockStands.find((s) => s.id === viewingSaleDetails.deliveredByStandId)?.name || "N/A"}
+                {stands.find((s) => s.id === viewingSaleDetails.delivered_by_stand_id)?.name || "N/A"}
               </p>
             )}
-            {viewingSaleDetails?.deliveryTimestamp && (
+            {viewingSaleDetails?.delivery_timestamp && (
               <p>
-                <strong>Fecha Entrega:</strong> {new Date(viewingSaleDetails.deliveryTimestamp).toLocaleString()}
+                <strong>Fecha Entrega:</strong> {new Date(viewingSaleDetails.delivery_timestamp).toLocaleString()}
               </p>
             )}
           </div>
@@ -820,7 +788,7 @@ export default function SalesPage() {
             <DialogTitle>Confirmar Entrega Manual</DialogTitle>
             <DialogDescription>
               ¿Estás seguro de que quieres marcar la venta <strong>{confirmingDeliverySale?.id}</strong> para{" "}
-              <strong>{confirmingDeliverySale?.email}</strong> como ENTREGADA? Esta acción no se puede deshacer
+              <strong>{confirmingDeliverySale?.customer_email}</strong> como ENTREGADA? Esta acción no se puede deshacer
               fácilmente.
             </DialogDescription>
           </DialogHeader>
@@ -853,15 +821,15 @@ export default function SalesPage() {
           <DialogHeader>
             <DialogTitle>Validar Pago</DialogTitle>
             <DialogDescription>
-              Confirma el pago de <strong>${(validatingPaymentSale?.totalAmount || 0).toLocaleString()}</strong> para la
+              Confirma el pago de <strong>${(validatingPaymentSale?.total_amount || 0).toLocaleString()}</strong> para la
               venta <strong>{validatingPaymentSale?.id}</strong>
             </DialogDescription>
           </DialogHeader>
           <div className="py-4 space-y-4">
             <div className="flex items-center justify-center p-4 bg-muted rounded-lg">
               <div className="text-center">
-                <div className="text-2xl font-bold">${(validatingPaymentSale?.totalAmount || 0).toLocaleString()}</div>
-                <div className="text-sm text-muted-foreground">{validatingPaymentSale?.email}</div>
+                <div className="text-2xl font-bold">${(validatingPaymentSale?.total_amount || 0).toLocaleString()}</div>
+                <div className="text-sm text-muted-foreground">{validatingPaymentSale?.customer_email}</div>
               </div>
             </div>
 
@@ -871,28 +839,26 @@ export default function SalesPage() {
                 <span className="text-sm text-muted-foreground">Actual:</span>
                 <Badge
                   variant="outline"
-                  className={`${getPaymentMethodColor(validatingPaymentSale?.paymentMethod)} text-white`}
+                  className={`${getPaymentMethodColor(validatingPaymentSale?.payment_method || "cash")} text-white`}
                 >
-                  {getPaymentMethodIcon(validatingPaymentSale?.paymentMethod)}
-                  <span className="ml-1">{validatingPaymentSale?.paymentMethod || "N/A"}</span>
+                  {getPaymentMethodIcon(validatingPaymentSale?.payment_method || "cash")}
+                  <span className="ml-1">{validatingPaymentSale?.payment_method || "N/A"}</span>
                 </Badge>
               </div>
               <select
                 id="payment-method-validation"
-                value={selectedPaymentMethod || validatingPaymentSale?.paymentMethod || ""}
+                value={selectedPaymentMethod || validatingPaymentSale?.payment_method || ""}
                 onChange={(e) => setSelectedPaymentMethod(e.target.value as PaymentMethod)}
                 className="w-full p-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-800 dark:border-gray-600 dark:text-white"
               >
-                <option value="POS">💳 POS (Tarjeta)</option>
-                <option value="Efectivo">💵 Efectivo</option>
-                <option value="QR_MercadoPago">📱 QR Mercado Pago</option>
-                <option value="Transferencia">🔄 Transferencia</option>
+                <option value="card">💳 POS (Tarjeta)</option>
+                <option value="cash">💵 Efectivo</option>
               </select>
-              {selectedPaymentMethod && selectedPaymentMethod !== validatingPaymentSale?.paymentMethod && (
+              {selectedPaymentMethod && selectedPaymentMethod !== validatingPaymentSale?.payment_method && (
                 <div className="flex items-center gap-2 p-2 bg-blue-50 dark:bg-blue-900/20 rounded-md">
                   <AlertCircle className="h-4 w-4 text-blue-500" />
                   <span className="text-sm text-blue-700 dark:text-blue-300">
-                    Se cambiará de {validatingPaymentSale?.paymentMethod} a {selectedPaymentMethod}
+                    Se cambiará de {validatingPaymentSale?.payment_method} a {selectedPaymentMethod}
                   </span>
                 </div>
               )}
@@ -915,7 +881,7 @@ export default function SalesPage() {
                 validatingPaymentSale &&
                 handleValidatePayment(
                   validatingPaymentSale.id,
-                  selectedPaymentMethod || validatingPaymentSale.paymentMethod,
+                  selectedPaymentMethod || validatingPaymentSale?.payment_method || "cash",
                 )
               }
             >
@@ -933,7 +899,7 @@ export default function SalesPage() {
             <DialogTitle>Procesar Devolución</DialogTitle>
             <DialogDescription>
               ¿Estás seguro de que quieres procesar la devolución de la venta <strong>{returningOrderSale?.id}</strong>{" "}
-              por <strong>${(returningOrderSale?.totalAmount || 0).toLocaleString()}</strong>?
+              por <strong>${(returningOrderSale?.total_amount || 0).toLocaleString()}</strong>?
             </DialogDescription>
           </DialogHeader>
           <div className="py-4">
@@ -984,9 +950,9 @@ export default function SalesPage() {
               <div className="text-center">
                 <Trash2 className="h-8 w-8 text-red-500 mx-auto mb-2" />
                 <div className="text-lg font-semibold">Venta: {cancellingOrderSale?.id}</div>
-                <div className="text-sm text-muted-foreground">Cliente: {cancellingOrderSale?.email}</div>
+                <div className="text-sm text-muted-foreground">Cliente: {cancellingOrderSale?.customer_email}</div>
                 <div className="text-sm text-muted-foreground">
-                  Total: ${(cancellingOrderSale?.totalAmount || 0).toLocaleString()}
+                  Total: ${(cancellingOrderSale?.total_amount || 0).toLocaleString()}
                 </div>
                 <div className="text-sm text-red-600 mt-2 font-medium">
                   Se restaurará el stock de {cancellingOrderSale?.items.length} productos automáticamente
@@ -1014,15 +980,7 @@ export default function SalesPage() {
         <EditOrderDialog
           open={!!editingOrderSale}
           onOpenChange={(open) => !open && setEditingOrderSale(null)}
-          orderItems={editingOrderSale.items.map((item) => ({
-            id: `item_${item.productId}`,
-            productId: item.productId,
-            productName: item.productName,
-            size: "M", // Default size, you might want to store this in the sale
-            quantity: item.quantity,
-            unitPrice:
-              (editingOrderSale.totalAmount || 0) / editingOrderSale.items.reduce((sum, i) => sum + i.quantity, 0), // Estimate unit price
-          }))}
+          orderItems={editingOrderSale.items}
           onSaveChanges={handleSaveEditedOrder}
         />
       )}
