@@ -10,7 +10,10 @@ interface ProtectedRouteProps {
   requiredRole?: 'admin' | 'manager' | 'staff'
 }
 
-export default function ProtectedRoute({ children, requiredRole }: ProtectedRouteProps) {
+export default function ProtectedRoute({ 
+  children, 
+  requiredRole 
+}: ProtectedRouteProps) {
   const { user, userProfile, isLoading } = useApp()
   const router = useRouter()
 
@@ -22,17 +25,18 @@ export default function ProtectedRoute({ children, requiredRole }: ProtectedRout
 
   useEffect(() => {
     if (!isLoading && user && userProfile && requiredRole) {
+      // Check role hierarchy: admin > manager > staff
       const roleHierarchy = {
-        staff: 1,
-        manager: 2,
-        admin: 3,
+        'admin': 3,
+        'manager': 2,
+        'staff': 1
       }
 
-      const userRoleLevel = roleHierarchy[userProfile.role]
-      const requiredRoleLevel = roleHierarchy[requiredRole]
+      const userRoleLevel = roleHierarchy[userProfile.role as keyof typeof roleHierarchy] || 0
+      const requiredRoleLevel = roleHierarchy[requiredRole] || 0
 
       if (userRoleLevel < requiredRoleLevel) {
-        router.push('/dashboard')
+        router.push('/dashboard') // Redirect to dashboard if insufficient permissions
       }
     }
   }, [user, userProfile, requiredRole, isLoading, router])
@@ -54,13 +58,13 @@ export default function ProtectedRoute({ children, requiredRole }: ProtectedRout
 
   if (requiredRole && userProfile) {
     const roleHierarchy = {
-      staff: 1,
-      manager: 2,
-      admin: 3,
+      'admin': 3,
+      'manager': 2,
+      'staff': 1
     }
 
-    const userRoleLevel = roleHierarchy[userProfile.role]
-    const requiredRoleLevel = roleHierarchy[requiredRole]
+    const userRoleLevel = roleHierarchy[userProfile.role as keyof typeof roleHierarchy] || 0
+    const requiredRoleLevel = roleHierarchy[requiredRole] || 0
 
     if (userRoleLevel < requiredRoleLevel) {
       return null

@@ -559,7 +559,7 @@ function StandFormDialog({ isOpen, onOpenChange, onSubmit, stand, allProducts, o
                         type="number"
                         min="0"
                         // max={productMaxAssignable}
-                        value={currentAssignment?.assignedQuantity || 0}
+                        defaultValue={currentAssignment?.assignedQuantity || 0}
                         onChange={(e) => handleStockChange(product.id || '', product.products?.name || '', Number.parseInt(e.target.value))}
                         className="col-span-1"
                       />

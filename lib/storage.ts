@@ -40,6 +40,7 @@ export async function uploadToStorage(
         cacheControl: '3600',
         upsert: false
       })
+
     if (error) {
       console.error('Supabase upload error:', error)
       throw new Error(`Error al subir la imagen: ${error.message}`)

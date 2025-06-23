@@ -164,6 +164,7 @@ export default function ProductsPage() {
               products={products} 
               onAssignStock={handleAssignStock}
               onEdit={handleEditProduct}
+              fetchProducts={fetchProducts}
             />
           )}
         </CardContent>

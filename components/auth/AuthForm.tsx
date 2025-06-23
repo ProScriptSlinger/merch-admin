@@ -3,13 +3,14 @@
 import { useState } from 'react'
 import { Auth } from '@supabase/auth-ui-react'
 import { ThemeSupa } from '@supabase/auth-ui-shared'
-import { supabase } from '@/lib/supabase'
+import { createClient } from '@/lib/supabase/client'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 
 export default function AuthForm() {
   const [view, setView] = useState<'sign_in' | 'sign_up'>('sign_in')
+  const supabase = createClient()
 
   return (
     <div className="w-full max-w-md mx-auto">

@@ -107,9 +107,9 @@ export function AppSidebar() {
               <span className="font-medium">Settings</span>
             </SidebarMenuButton>
           </SidebarMenuItem>
-          <SidebarMenuItem>
+          {/* <SidebarMenuItem>
             <DropdownMenuUserProfile />
-          </SidebarMenuItem>
+          </SidebarMenuItem> */}
         </SidebarMenu>
       </SidebarFooter>
     </Sidebar>

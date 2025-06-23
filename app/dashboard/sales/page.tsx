@@ -640,7 +640,7 @@ export default function SalesPage() {
                         <ArrowRightLeft className="mr-1 h-3 w-3" /> Devuelta
                       </Badge>
                     ) : (
-                      <Badge variant="warning">
+                      <Badge variant="default">
                         <Clock className="mr-1 h-3 w-3" /> Pendiente
                       </Badge>
                     )}

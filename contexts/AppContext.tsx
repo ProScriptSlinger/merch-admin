@@ -1,8 +1,8 @@
 'use client'
 
 import React, { createContext, useContext, useEffect, useState, ReactNode } from 'react'
-import { User, Session } from '@supabase/supabase-js'
-import { supabase } from '@/lib/supabase'
+import { User, Session, AuthChangeEvent } from '@supabase/supabase-js'
+import { createClient } from '@/lib/supabase/client'
 import type { Database } from '@/lib/supabase'
 
 type UserProfile = Database['public']['Tables']['users']['Row']
@@ -27,6 +27,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [realtimeSubscriptions, setRealtimeSubscriptions] = useState<Map<string, any>>(new Map())
+
+  // Create Supabase client
+  const supabase = createClient()
 
   // Fetch user profile
   const fetchUserProfile = async (userId: string) => {
@@ -152,7 +155,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     getSession()
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (event, session) => {
+      async (event: AuthChangeEvent, session: Session | null) => {
         console.log('Auth state change:', event, session?.user?.email)
         
         setSession(session)
@@ -161,7 +164,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
         if (session?.user) {
           // Handle different auth events
-          if (event === 'SIGNED_IN' || event === 'SIGNED_UP') {
+          if (event === 'SIGNED_IN' || event === 'USER_UPDATED') {
             await createUserProfile(session.user)
           } else if (event === 'TOKEN_REFRESHED') {
             await fetchUserProfile(session.user.id)

@@ -20,12 +20,14 @@ interface ProductsTableProps {
   products: ProductWithDetails[];
   onAssignStock: (product: ProductWithDetails) => void;
   onEdit: (product: ProductWithDetails) => void;
+  fetchProducts: () => void;
 }
 
 export default function ProductsTable({
   products,
   onAssignStock,
   onEdit,
+  fetchProducts,
 }: ProductsTableProps) {
   const { toast } = useToast();
 
@@ -44,7 +46,7 @@ export default function ProductsTable({
         title: "Éxito",
         description: `Producto "${productName}" eliminado correctamente.`,
       });
-      // The parent component will handle refreshing the data
+      fetchProducts()
     } catch (error) {
       console.error('Error deleting product:', error);
       toast({
