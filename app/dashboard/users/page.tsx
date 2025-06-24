@@ -23,7 +23,7 @@ import {
   Loader2,
 } from "lucide-react"
 import { getUsers, type UserProfile } from "@/lib/services/users"
-import { useApp } from "@/contexts/AppContext"
+import { useAuth } from "@/contexts/AuthContext"
 import { useToast } from "@/hooks/use-toast"
 
 export default function UsersPage() {
@@ -31,7 +31,6 @@ export default function UsersPage() {
   const [isLoading, setIsLoading] = useState(true)
   const [searchTerm, setSearchTerm] = useState("")
   const [selectedUser, setSelectedUser] = useState<UserProfile | null>(null)
-  const { subscribeToRealtime, unsubscribeFromRealtime } = useApp()
   const { toast } = useToast()
 
   const fetchUsers = async () => {

@@ -16,7 +16,7 @@ import ProductsTable from "./products-table"
 import StockAssignmentDialog from "./stock-assignment-dialog"
 import { PlusCircle } from "lucide-react"
 import { getProducts, type ProductWithDetails } from "@/lib/services/products"
-import { useApp } from "@/contexts/AppContext"
+import { useAuth } from "@/contexts/AuthContext"
 import { useToast } from "@/hooks/use-toast"
 
 function LoadingSpinner() {
@@ -34,7 +34,6 @@ export default function ProductsPage() {
   const [isFormDialogOpen, setIsFormDialogOpen] = useState(false)
   const [editingProduct, setEditingProduct] = useState<ProductWithDetails | null>(null)
   const [selectedProductForAssignment, setSelectedProductForAssignment] = useState<ProductWithDetails | null>(null)
-  const { subscribeToRealtime, unsubscribeFromRealtime } = useApp()
   const { toast } = useToast()
 
   const fetchProducts = async () => {

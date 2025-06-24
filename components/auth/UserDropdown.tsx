@@ -3,7 +3,7 @@
 import { QrCode, LogOut, User } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import Link from "next/link"
-import { useApp } from "@/contexts/AppContext"
+import { useAuth } from "@/contexts/AuthContext"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -15,8 +15,8 @@ import {
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 
 export function UserDropdown() {
-  const { userProfile, signOut } = useApp()
-
+  const { userProfile, signOut } = useAuth()
+  console.log(userProfile);
   return (
     <>
       {/* Botón SCANEAR QR */}

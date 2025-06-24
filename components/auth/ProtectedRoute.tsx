@@ -2,7 +2,7 @@
 
 import { useEffect } from 'react'
 import { useRouter } from 'next/navigation'
-import { useApp } from '@/contexts/AppContext'
+import { useAuth } from '@/contexts/AuthContext'
 import { Loader2 } from 'lucide-react'
 
 interface ProtectedRouteProps {
@@ -14,7 +14,7 @@ export default function ProtectedRoute({
   children, 
   requiredRole 
 }: ProtectedRouteProps) {
-  const { user, userProfile, isLoading } = useApp()
+  const { user, userProfile, isLoading } = useAuth()
   const router = useRouter()
   useEffect(() => {
     if (!isLoading && !user) {

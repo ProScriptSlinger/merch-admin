@@ -2,11 +2,11 @@
 
 import { useEffect } from 'react'
 import { useRouter } from 'next/navigation'
-import { useApp } from '@/contexts/AppContext'
+import { useAuth } from '@/contexts/AuthContext'
 import AuthForm from '@/components/auth/AuthForm'
 
 export default function AuthPage() {
-  const { user, isLoading } = useApp()
+  const { user, isLoading } = useAuth()
   const router = useRouter()
 
   useEffect(() => {

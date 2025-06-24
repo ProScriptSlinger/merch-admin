@@ -8,7 +8,7 @@ import { Inter } from "next/font/google"
 import "./globals.css"
 import { ThemeProvider } from "@/components/theme-provider"
 import { Toaster } from "@/components/ui/toaster" // Ensure Toaster is here
-import { AppProvider } from "@/contexts/AppContext"
+import { AuthProvider } from "@/contexts/AuthContext"
 
 const inter = Inter({ subsets: ["latin"] })
 
@@ -27,12 +27,12 @@ export default function RootLayout({
     <html lang="en" suppressHydrationWarning>
       <body className={inter.className}>
         <ThemeProvider attribute="class" defaultTheme="system" enableSystem disableTransitionOnChange>
-          <AppProvider>
+          <AuthProvider>
             {/* If you have a sidebar/main layout structure, it would wrap children */}
             {/* For this DB demo, keeping it simple */}
             {children}
             <Toaster />
-          </AppProvider>
+          </AuthProvider>
         </ThemeProvider>
       </body>
     </html>

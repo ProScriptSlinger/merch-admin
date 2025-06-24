@@ -87,7 +87,7 @@ export async function middleware(request: NextRequest) {
 ### 4. **Authentication Components**
 
 #### Client-Side Protected Route
-- Uses `useApp` context for client-side authentication
+- Uses `useAuth` context for client-side authentication
 - Handles loading states and role-based access
 - Works with client components
 
