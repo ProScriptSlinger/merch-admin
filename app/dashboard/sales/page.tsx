@@ -575,8 +575,8 @@ export default function SalesPage() {
                   </TableCell>
                   <TableCell className="font-semibold">${(sale.total_amount || 0).toLocaleString()}</TableCell>
                   <TableCell>
-                    <Badge variant="outline" className={`${getPaymentMethodColor(sale?.payment_method || "cash")} text-white`}>
-                      {getPaymentMethodIcon(sale?.payment_method || "cash")}
+                    <Badge variant="outline" className={`${getPaymentMethodColor(sale?.payment_method as PaymentMethod || "cash")} text-white`}>
+                      {getPaymentMethodIcon(sale?.payment_method as PaymentMethod || "cash")}
                       <span className="ml-1">{sale?.payment_method || "N/A"}</span>
                     </Badge>
                   </TableCell>
@@ -656,7 +656,7 @@ export default function SalesPage() {
                             <DropdownMenuItem
                               onClick={() => {
                                 setValidatingPaymentSale(sale)
-                                setSelectedPaymentMethod(sale?.payment_method || "card")
+                                setSelectedPaymentMethod(sale?.payment_method as PaymentMethod || "card")
                               }}
                             >
                               Validar Pago
@@ -728,9 +728,9 @@ export default function SalesPage() {
               <strong>Método de Pago:</strong>
               <Badge
                 variant="outline"
-                className={`ml-2 ${getPaymentMethodColor(viewingSaleDetails?.payment_method || "cash")} text-white`}
+                className={`ml-2 ${getPaymentMethodColor(viewingSaleDetails?.payment_method as PaymentMethod || "cash")} text-white`}
               >
-                {getPaymentMethodIcon(viewingSaleDetails?.payment_method || "cash")}
+                {getPaymentMethodIcon(viewingSaleDetails?.payment_method as PaymentMethod || "cash")}
                 <span className="ml-1">{viewingSaleDetails?.payment_method || "N/A"}</span>
               </Badge>
             </p>
@@ -839,9 +839,9 @@ export default function SalesPage() {
                 <span className="text-sm text-muted-foreground">Actual:</span>
                 <Badge
                   variant="outline"
-                  className={`${getPaymentMethodColor(validatingPaymentSale?.payment_method || "cash")} text-white`}
+                  className={`${getPaymentMethodColor(validatingPaymentSale?.payment_method as PaymentMethod || "cash")} text-white`}
                 >
-                  {getPaymentMethodIcon(validatingPaymentSale?.payment_method || "cash")}
+                  {getPaymentMethodIcon(validatingPaymentSale?.payment_method as PaymentMethod || "cash")}
                   <span className="ml-1">{validatingPaymentSale?.payment_method || "N/A"}</span>
                 </Badge>
               </div>
@@ -854,7 +854,7 @@ export default function SalesPage() {
                 <option value="card">💳 POS (Tarjeta)</option>
                 <option value="cash">💵 Efectivo</option>
               </select>
-              {selectedPaymentMethod && selectedPaymentMethod !== validatingPaymentSale?.payment_method && (
+              {selectedPaymentMethod && selectedPaymentMethod !== (validatingPaymentSale?.payment_method as PaymentMethod) && (
                 <div className="flex items-center gap-2 p-2 bg-blue-50 dark:bg-blue-900/20 rounded-md">
                   <AlertCircle className="h-4 w-4 text-blue-500" />
                   <span className="text-sm text-blue-700 dark:text-blue-300">
@@ -881,7 +881,7 @@ export default function SalesPage() {
                 validatingPaymentSale &&
                 handleValidatePayment(
                   validatingPaymentSale.id,
-                  selectedPaymentMethod || validatingPaymentSale?.payment_method || "cash",
+                  selectedPaymentMethod || (validatingPaymentSale?.payment_method as PaymentMethod) || "cash",
                 )
               }
             >

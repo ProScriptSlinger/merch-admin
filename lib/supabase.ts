@@ -1,15 +1,20 @@
-// Re-export the client utilities
-export { createClient as createBrowserClient } from './supabase/client'
-// Note: Server client is exported separately to avoid next/headers issues
-// Use createSimpleClient from './supabase/server-simple' for server actions
-
-// Legacy export for backward compatibility (deprecated)
-import { createClient as createLegacyClient } from '@supabase/supabase-js'
+import { createClient } from '@supabase/supabase-js'
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
 
-export const supabase = createLegacyClient(supabaseUrl, supabaseAnonKey)
+export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
+  auth: {
+    autoRefreshToken: true,
+    persistSession: true,
+    detectSessionInUrl: true
+  },
+  realtime: {
+    params: {
+      eventsPerSecond: 10
+    }
+  }
+})
 
 // Database types
 export interface Database {
