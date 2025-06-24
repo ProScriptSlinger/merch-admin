@@ -52,82 +52,103 @@ export interface SalesStats {
   totalSalesCount: number
 }
 
+// Helper function to check if Supabase is properly configured
+function checkSupabaseConfig() {
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL
+  const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+  
+  if (!url || !key) {
+    console.error('Supabase configuration error:', { url: !!url, key: !!key })
+    throw new Error('Supabase environment variables are not properly configured')
+  }
+  
+  return { url, key }
+}
+
 // Fetch all sales with details
 export async function getSales(filters?: SalesFilters): Promise<SaleWithDetails[]> {
-  let query = supabase
-    .from('orders')
-    .select(`
-      *,
-      items:order_items(
+  try {
+    checkSupabaseConfig()
+    
+    let query = supabase
+      .from('orders')
+      .select(`
         *,
-        product_variant:product_variants(
+        items:order_items(
           *,
-          product:products(
-            id, 
-            name,
-            images:product_images(*)
+          product_variant:product_variants(
+            *,
+            product:products(
+              id, 
+              name,
+              images:product_images(*)
+            )
           )
-        )
-      ),
-      stand:stands!stand_id(*),
-      delivered_by_stand:stands!delivered_by_stand_id(*),
-      user:users(*)
-    `)
-    .order('created_at', { ascending: false })
+        ),
+        stand:stands!stand_id(*),
+        delivered_by_stand:stands!delivered_by_stand_id(*),
+        user:users(*)
+      `)
+      .order('created_at', { ascending: false })
 
-  // Apply filters
-  if (filters) {
-    if (filters.email) {
-      query = query.ilike('customer_email', `%${filters.email}%`)
+    // Apply filters
+    if (filters) {
+      if (filters.email) {
+        query = query.ilike('customer_email', `%${filters.email}%`)
+      }
+      
+      if (filters.saleType && filters.saleType !== 'all') {
+        query = query.eq('sale_type', filters.saleType)
+      }
+      
+      if (filters.status && filters.status !== 'all') {
+        query = query.eq('status', filters.status)
+      }
+      
+      if (filters.paymentMethod && filters.paymentMethod !== 'all') {
+        query = query.eq('payment_method', filters.paymentMethod)
+      }
+      
+      if (filters.paymentValidated === 'validated') {
+        query = query.eq('payment_validated', true)
+      } else if (filters.paymentValidated === 'pending') {
+        query = query.eq('payment_validated', false)
+      }
+      
+      if (filters.standId && filters.standId !== 'all') {
+        query = query.or(`stand_id.eq.${filters.standId},delivered_by_stand_id.eq.${filters.standId}`)
+      }
+      
+      if (filters.dateFrom) {
+        query = query.gte('created_at', filters.dateFrom)
+      }
+      
+      if (filters.dateTo) {
+        const endDate = new Date(filters.dateTo)
+        endDate.setHours(23, 59, 59, 999)
+        query = query.lte('created_at', endDate.toISOString())
+      }
     }
-    
-    if (filters.saleType && filters.saleType !== 'all') {
-      query = query.eq('sale_type', filters.saleType)
+
+    const { data: sales, error } = await query
+
+    if (error) {
+      console.error('Supabase query error:', error)
+      throw new Error(`Error fetching sales: ${error.message}`)
     }
-    
-    if (filters.status && filters.status !== 'all') {
-      query = query.eq('status', filters.status)
+
+    // Filter by product if specified
+    if (filters?.productId && filters.productId !== 'all') {
+      return sales.filter(sale => 
+        sale.items.some((item: any) => item.product_variant.product.id === filters.productId)
+      )
     }
-    
-    if (filters.paymentMethod && filters.paymentMethod !== 'all') {
-      query = query.eq('payment_method', filters.paymentMethod)
-    }
-    
-    if (filters.paymentValidated === 'validated') {
-      query = query.eq('payment_validated', true)
-    } else if (filters.paymentValidated === 'pending') {
-      query = query.eq('payment_validated', false)
-    }
-    
-    if (filters.standId && filters.standId !== 'all') {
-      query = query.or(`stand_id.eq.${filters.standId},delivered_by_stand_id.eq.${filters.standId}`)
-    }
-    
-    if (filters.dateFrom) {
-      query = query.gte('created_at', filters.dateFrom)
-    }
-    
-    if (filters.dateTo) {
-      const endDate = new Date(filters.dateTo)
-      endDate.setHours(23, 59, 59, 999)
-      query = query.lte('created_at', endDate.toISOString())
-    }
+
+    return sales || []
+  } catch (error) {
+    console.error('Error in getSales:', error)
+    throw error
   }
-
-  const { data: sales, error } = await query
-
-  if (error) {
-    throw new Error(`Error fetching sales: ${error.message}`)
-  }
-
-  // Filter by product if specified
-  if (filters?.productId && filters.productId !== 'all') {
-    return sales.filter(sale => 
-      sale.items.some((item: any) => item.product_variant.product.id === filters.productId)
-    )
-  }
-
-  return sales
 }
 
 // Fetch single sale with details
@@ -447,57 +468,68 @@ export async function updateSaleItems(saleId: string, updatedItems: Array<{
 
 // Calculate sales statistics
 export async function getSalesStats(): Promise<SalesStats> {
-  const { data: sales, error } = await supabase
-    .from('orders')
-    .select('*')
+  try {
+    checkSupabaseConfig()
+    
+    const { data: sales, error } = await supabase
+      .from('orders')
+      .select('*')
 
-  if (error) {
-    throw new Error(`Error fetching sales for stats: ${error.message}`)
-  }
+    if (error) {
+      console.error('Error fetching sales for stats:', error)
+      throw new Error(`Error fetching sales for stats: ${error.message}`)
+    }
 
-  const totalSales = sales.reduce((sum, sale) => 
-    sum + (sale.status !== 'returned' && sale.status !== 'cancelled' ? sale.total_amount : 0), 0
-  )
-  
-  const validatedSales = sales.filter((sale) => 
-    sale.payment_validated && sale.status !== 'returned' && sale.status !== 'cancelled'
-  ).length
-  
-  const pendingValidation = sales.filter((sale) => 
-    !sale.payment_validated && sale.status !== 'returned' && sale.status !== 'cancelled'
-  ).length
-  
-  const returnedSales = sales.filter((sale) => 
-    sale.status === 'returned' || sale.status === 'cancelled'
-  ).length
-  
-  const cashOrdersPending = sales.filter((sale) => 
-    sale.payment_method === 'Efectivo' && !sale.payment_validated
-  ).length
+    const totalSales = (sales || []).reduce((sum, sale) => 
+      sum + (sale.status !== 'returned' && sale.status !== 'cancelled' ? sale.total_amount : 0), 0
+    )
+    
+    const validatedSales = (sales || []).filter((sale) => 
+      sale.payment_validated && sale.status !== 'returned' && sale.status !== 'cancelled'
+    ).length
+    
+    const pendingValidation = (sales || []).filter((sale) => 
+      !sale.payment_validated && sale.status !== 'returned' && sale.status !== 'cancelled'
+    ).length
+    
+    const returnedSales = (sales || []).filter((sale) => 
+      sale.status === 'returned' || sale.status === 'cancelled'
+    ).length
+    
+    const cashOrdersPending = (sales || []).filter((sale) => 
+      sale.payment_method === 'Efectivo' && !sale.payment_validated
+    ).length
 
-  // Calculate total products sold
-  const { data: orderItems, error: itemsError } = await supabase
-    .from('order_items')
-    .select(`
-      quantity,
-      order:orders(status)
-    `)
+    // Calculate total products sold
+    const { data: orderItems, error: itemsError } = await supabase
+      .from('order_items')
+      .select(`
+        quantity,
+        order:orders(status)
+      `)
 
-  if (itemsError) {
-    throw new Error(`Error fetching order items for stats: ${itemsError.message}`)
-  }
+    if (itemsError) {
+      console.error('Error fetching order items for stats:', itemsError)
+      throw new Error(`Error fetching order items for stats: ${itemsError.message}`)
+    }
 
-  const totalProducts = orderItems.reduce((sum, item) => 
-    sum + (item?.order?.status !== 'returned' && item?.order?.status !== 'cancelled' ? item?.quantity : 0), 0
-  )
+    const totalProducts = (orderItems || []).reduce((sum, item: any) => {
+      const orderStatus = item?.order?.status
+      const quantity = item?.quantity || 0
+      return sum + (orderStatus !== 'returned' && orderStatus !== 'cancelled' ? quantity : 0)
+    }, 0)
 
-  return {
-    totalSales,
-    totalProducts,
-    validatedSales,
-    pendingValidation,
-    returnedSales,
-    cashOrdersPending,
-    totalSalesCount: sales.filter((sale) => sale.status !== 'returned' && sale.status !== 'cancelled').length,
+    return {
+      totalSales,
+      totalProducts,
+      validatedSales,
+      pendingValidation,
+      returnedSales,
+      cashOrdersPending,
+      totalSalesCount: (sales || []).filter((sale) => sale.status !== 'returned' && sale.status !== 'cancelled').length,
+    }
+  } catch (error) {
+    console.error('Error in getSalesStats:', error)
+    throw error
   }
 } 
