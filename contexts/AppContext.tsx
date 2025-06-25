@@ -6,7 +6,7 @@ import { Stand } from '@/lib/types'
 import { getProducts, ProductWithDetails } from '@/lib/services/products'
 import { getSales } from '@/lib/services/sales'
 import { getStands } from '@/lib/services/stands'
-import { supabase } from '@/lib/supabase'
+import { createClient } from '@/lib/supabase/client'
 import { toast } from '@/components/ui/use-toast'
 import { getOrders, OrderWithDetails } from '@/lib/services/orders'
 
@@ -26,6 +26,7 @@ interface AppContextType {
 const AppContext = createContext<AppContextType | undefined>(undefined)
 
 export function AppProvider({ children }: { children: ReactNode }) {
+  const supabase = createClient()
   const [sales, setSales] = useState<SaleWithDetails[]>([])
   const [orders, setOrders] = useState<OrderWithDetails[]>([])
   const [stands, setStands] = useState<Stand[]>([])

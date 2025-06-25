@@ -1,2 +1,8 @@
-// Re-export the supabase client from the main supabase file to avoid multiple instances
-export { supabase } from '../supabase'
+import { createBrowserClient } from '@supabase/ssr'
+
+export function createClient() {
+    return createBrowserClient(
+        process.env.NEXT_PUBLIC_SUPABASE_URL!,
+        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+    )
+}

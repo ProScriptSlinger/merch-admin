@@ -1,5 +1,4 @@
-import { supabase } from '@/lib/supabase'
-import { createClient } from '@supabase/supabase-js'
+import { createClient } from '@/lib/supabase/client'
 import type { Database } from '@/lib/supabase'
 
 type Product = Database['public']['Tables']['products']['Row']
@@ -41,14 +40,13 @@ export interface UpdateProductData {
 }
 
 // Create a service role client for admin operations
-const createServiceClient = () => {
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
-  const supabaseServiceKey = process.env.NEXT_PUBLIC_SUPABASE_SERVICE_ROLE_KEY!
-  return createClient<Database>(supabaseUrl, supabaseServiceKey)
+const createServiceClient = async () => {
+  return createClient()
 }
 
 // Fetch all products with details
 export async function getProducts(): Promise<ProductWithDetails[]> {
+  const supabase = await createServiceClient()
   const { data: products, error: productsError } = await supabase
     .from('products')
     .select(`
@@ -71,6 +69,7 @@ export async function getProducts(): Promise<ProductWithDetails[]> {
 
 // Fetch single product with details
 export async function getProduct(id: string): Promise<ProductWithDetails | null> {
+  const supabase = await createServiceClient()
   const { data: product, error } = await supabase
     .from('products')
     .select(`
@@ -97,7 +96,7 @@ export async function getProduct(id: string): Promise<ProductWithDetails | null>
 
 // Create new product (using service role for admin operations)
 export async function createProduct(productData: CreateProductData): Promise<ProductWithDetails> {
-  const serviceClient = createServiceClient()
+  const serviceClient = await createServiceClient()
   
   const { data: product, error: productError } = await serviceClient
     .from('products')
@@ -155,7 +154,7 @@ export async function createProduct(productData: CreateProductData): Promise<Pro
 
 // Update product (using service role for admin operations)
 export async function updateProduct(id: string, productData: UpdateProductData): Promise<ProductWithDetails> {
-  const serviceClient = createServiceClient()
+  const serviceClient = await createServiceClient()
   
   const { error: productError } = await serviceClient
     .from('products')
@@ -234,7 +233,7 @@ export async function updateProduct(id: string, productData: UpdateProductData):
 
 // Delete product (using service role for admin operations)
 export async function deleteProduct(id: string): Promise<void> {
-  const serviceClient = createServiceClient()
+  const serviceClient = await createServiceClient()
   
   const { error } = await serviceClient
     .from('products')
@@ -248,6 +247,7 @@ export async function deleteProduct(id: string): Promise<void> {
 
 // Fetch categories
 export async function getCategories(): Promise<Category[]> {
+  const supabase = await createServiceClient()
   const { data, error } = await supabase
     .from('categories')
     .select('*')
@@ -266,6 +266,7 @@ export async function updateProductVariantQuantity(
   quantity: number,
   reason: string = 'Manual adjustment'
 ): Promise<void> {
+  const supabase = await createServiceClient()
   // Get current quantity
   const { data: variant, error: fetchError } = await supabase
     .from('product_variants')

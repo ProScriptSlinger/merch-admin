@@ -1,10 +1,10 @@
 'use server'
 
-import { createSimpleClient } from '@/lib/supabase/server-simple'
+import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
 
 export async function signOut() {
-  const supabase = createSimpleClient()
+  const supabase = await createClient()
 
   // Check if we have a session
   const {
@@ -19,7 +19,7 @@ export async function signOut() {
 }
 
 export async function getUser() {
-  const supabase = createSimpleClient()
+  const supabase = await createClient()
 
   try {
     const {
@@ -39,7 +39,7 @@ export async function getUser() {
 }
 
 export async function getUserProfile(userId: string) {
-  const supabase = createSimpleClient()
+  const supabase = await createClient()
 
   try {
     const { data, error } = await supabase
