@@ -66,7 +66,7 @@ const paymentMethods = [
   }
 ]
 
-export function OrderGenerator({ setOrders }: { setOrders: (orders: OrderWithDetails[]) => void }) {
+export function OrderGenerator() {
   const [selectedCustomerId, setSelectedCustomerId] = useState("")
   const [orderItems, setOrderItems] = useState<OrderItem[]>([])
   const [selectedProductId, setSelectedProductId] = useState("")
@@ -218,8 +218,6 @@ export function OrderGenerator({ setOrders }: { setOrders: (orders: OrderWithDet
         }
       }
 
-      const orders = await getOrders()
-      setOrders(orders)
     } catch (error) {
       console.error("Error processing payment:", error)
       setPaymentStatus("failed")

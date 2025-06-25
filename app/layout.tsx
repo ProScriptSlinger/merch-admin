@@ -9,6 +9,7 @@ import "./globals.css"
 import { ThemeProvider } from "@/components/theme-provider"
 import { Toaster } from "@/components/ui/toaster" // Ensure Toaster is here
 import { AuthProvider } from "@/contexts/AuthContext"
+import { AppProvider } from "@/contexts/AppContext"
 
 const inter = Inter({ subsets: ["latin"] })
 
@@ -28,10 +29,12 @@ export default function RootLayout({
       <body className={inter.className}>
         <ThemeProvider attribute="class" defaultTheme="system" enableSystem disableTransitionOnChange>
           <AuthProvider>
+            <AppProvider>
             {/* If you have a sidebar/main layout structure, it would wrap children */}
             {/* For this DB demo, keeping it simple */}
-            {children}
-            <Toaster />
+              {children}
+              <Toaster />
+            </AppProvider>
           </AuthProvider>
         </ThemeProvider>
       </body>

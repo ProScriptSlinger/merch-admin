@@ -32,10 +32,11 @@ import {
   CameraOff,
 } from "lucide-react"
 import QrReader from "react-qr-reader-es6"
-import { getOrderByQRCode, getOrders, updateOrder, type OrderWithDetails } from "@/lib/services/orders"
+import { getOrderByQRCode, updateOrder, type OrderWithDetails } from "@/lib/services/orders"
 import { EditOrderDialog } from "./edit-order-dialog"
 import { OrderGenerator } from "./order-generator"
 import Image from "next/image"
+import { useApp } from "@/contexts/AppContext"
 
 export default function ScanPage() {
   const [qrCode, setQrCode] = useState("")
@@ -48,16 +49,8 @@ export default function ScanPage() {
   const [isScanning, setIsScanning] = useState(false)
   const [scannerError, setScannerError] = useState("")
   const [isLoading, setIsLoading] = useState(false)
-  const [orders, setOrders] = useState<OrderWithDetails[]>([])
-  const fetchOrders = async () => {
-    const orders = await getOrders()
-    console.log(orders)
-    setOrders(orders)
-  }
-  useEffect(() => {
-    fetchOrders()
-  }, [])
 
+  const { orders, fetchOrders } = useApp()
 
 
   const handleQRSubmit = async (codeToProcess?: string) => {
@@ -727,7 +720,7 @@ export default function ScanPage() {
         </TabsContent>
 
         <TabsContent value="payment" className="space-y-6">
-          <OrderGenerator setOrders={setOrders}/>
+          <OrderGenerator/>
         </TabsContent>
       </Tabs>
 
