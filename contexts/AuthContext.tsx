@@ -2,7 +2,8 @@
 
 import React, { createContext, useContext, useEffect, useState, ReactNode, useCallback } from 'react'
 import { User, Session, AuthChangeEvent } from '@supabase/supabase-js'
-import { supabase } from '@/lib/supabase/client'
+// import { supabase } from '@/lib/supabase/client'
+import { createSimpleClient } from '@/lib/supabase/server-simple'
 import type { Database } from '@/lib/supabase'
 
 type UserProfile = Database['public']['Tables']['users']['Row']
@@ -18,6 +19,8 @@ interface AuthContextType {
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined)
+
+const supabase = createSimpleClient();
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null)
