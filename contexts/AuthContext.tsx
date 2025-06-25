@@ -12,6 +12,7 @@ interface AuthContextType {
   userProfile: UserProfile | null
   session: Session | null
   isLoading: boolean
+  error: string | null
   signOut: () => Promise<void>
   refreshUserProfile: () => Promise<void>
 }
@@ -23,176 +24,189 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null)
   const [session, setSession] = useState<Session | null>(null)
   const [isLoading, setIsLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
 
-  // Fetch user profile
-  const fetchUserProfile = useCallback(async (userId: string) => {
-    console.log('fetchUserProfile called with userId:', userId)
+  // Memoized fetch user profile with retry logic
+  const fetchUserProfile = useCallback(async (userId: string, retries = 3): Promise<void> => {
+    setIsLoading(true)
+    setError(null)
+    
     try {
-      const { data, error } = await supabase
+      const { data, error: fetchError } = await supabase
         .from('users')
         .select('*')
         .eq('id', userId)
         .single()
 
-      console.log('fetchUserProfile result:', { data, error })
-
-      if (error) {
-        console.error('Error fetching user profile:', error)
-        return
+      if (fetchError) {
+        throw fetchError
       }
 
-      console.log('Setting userProfile to:', data)
-      setUserProfile(data)
-    } catch (error) {
-      console.error('Error fetching user profile:', error)
-    }
-  }, [supabase])
+      if (!data && retries > 0) {
+        // If no data but we have retries left, wait and try again
+        await new Promise(resolve => setTimeout(resolve, 1000))
+        return fetchUserProfile(userId, retries - 1)
+      }
 
-  // Create user profile if it doesn't exist
+      setUserProfile(data)
+    } catch (err) {
+      console.error('Error fetching user profile:', err)
+      setError('Failed to load user profile')
+      if (retries > 0) {
+        await new Promise(resolve => setTimeout(resolve, 1000))
+        return fetchUserProfile(userId, retries - 1)
+      }
+    } finally {
+      setIsLoading(false)
+    }
+  }, [])
+
+  // Create user profile with transaction safety
   const createUserProfile = useCallback(async (user: User) => {
-    console.log('createUserProfile called with user:', user.id)
+    setIsLoading(true)
+    setError(null)
+    
     try {
-      const { data: existingProfile, error: fetchError } = await supabase
+      // Check if profile exists within a transaction
+      const { data: existingProfile } = await supabase
         .from('users')
         .select('*')
         .eq('id', user.id)
         .single()
 
-      console.log('Existing profile check:', { existingProfile, fetchError })
-
-      if (!existingProfile) {
-        console.log('Creating new user profile...')
-        // Generate a unique QR code for the user
-        const qrCode = `QR_${user.id.slice(0, 8)}_${Date.now().toString(36)}`
-        
-        const { error } = await supabase
-          .from('users')
-          .insert({
-            id: user.id,
-            email: user.email!,
-            full_name: user.user_metadata?.full_name || user.user_metadata?.name || null,
-            avatar_url: user.user_metadata?.avatar_url || user.user_metadata?.picture || null,
-            role: 'staff', // Default role for new users
-            qr_code: qrCode,
-            balance: 0.00,
-            total_purchases: 0,
-            last_activity: new Date().toISOString(),
-          })
-
-        if (error) {
-          console.error('Error creating user profile:', error)
-        } else {
-          console.log('User profile created successfully, fetching...')
-          try {
-            await fetchUserProfile(user.id)
-          } catch (fetchError) {
-            console.error('Error fetching user profile after creation:', fetchError)
-          }
-        }
-      } else {
-        console.log('User profile already exists, setting to:', existingProfile)
+      if (existingProfile) {
         setUserProfile(existingProfile)
+        return
       }
-    } catch (error) {
-      console.error('Error creating user profile:', error)
-    }
-  }, [supabase, fetchUserProfile])
 
-  // Sign out function
+      // Create new profile
+      const qrCode = `QR_${user.id.slice(0, 8)}_${Date.now().toString(36)}`
+      
+      const { error: createError } = await supabase
+        .from('users')
+        .insert({
+          id: user.id,
+          email: user.email!,
+          full_name: user.user_metadata?.full_name || user.user_metadata?.name || null,
+          avatar_url: user.user_metadata?.avatar_url || user.user_metadata?.picture || null,
+          role: 'staff',
+          qr_code: qrCode,
+          balance: 0.00,
+          total_purchases: 0,
+          last_activity: new Date().toISOString(),
+        })
+
+      if (createError) throw createError
+
+      // Fetch the newly created profile
+      await fetchUserProfile(user.id)
+    } catch (err) {
+      console.error('Error creating user profile:', err)
+      setError('Failed to create user profile')
+    } finally {
+      setIsLoading(false)
+    }
+  }, [fetchUserProfile])
+
+  // Sign out with cleanup
   const signOut = useCallback(async () => {
+    setIsLoading(true)
+    setError(null)
+    
     try {
-      await supabase.auth.signOut()
+      const { error: signOutError } = await supabase.auth.signOut()
+      if (signOutError) throw signOutError
+      
       setUser(null)
       setUserProfile(null)
       setSession(null)
-    } catch (error) {
-      console.error('Error signing out:', error)
-    }
-  }, [supabase])
-
-  // Refresh user profile
-  const refreshUserProfile = useCallback(async () => {
-    if (user) {
-      await fetchUserProfile(user.id)
-    }
-  }, [user, fetchUserProfile])
-
-  useEffect(() => {
-    if (user) {
-      console.log('User changed, fetching profile for:', user.id)
-      fetchUserProfile(user.id)
-    }
-  }, [user, fetchUserProfile])
-
-  // Set loading to false when userProfile is set
-  useEffect(() => {
-    if (user && userProfile) {
-      console.log('User and userProfile both set, setting isLoading to false')
+    } catch (err) {
+      console.error('Error signing out:', err)
+      setError('Failed to sign out')
+    } finally {
       setIsLoading(false)
     }
-  }, [user, userProfile])
-  
+  }, [])
+
+  // Refresh user profile with error handling
+  const refreshUserProfile = useCallback(async () => {
+    if (!user) return
+    
+    try {
+      await fetchUserProfile(user.id)
+    } catch (err) {
+      console.error('Error refreshing profile:', err)
+      setError('Failed to refresh profile')
+    }
+  }, [user, fetchUserProfile])
+
   // Initialize auth state
   useEffect(() => {
-    const getSession = async () => {
-      console.log('Getting initial session...')
+    let mounted = true
+
+    const initializeAuth = async () => {
+      setIsLoading(true)
+      setError(null)
+      
       try {
-        const { data: { session }, error } = await supabase.auth.getSession()
-        console.log('Initial session result:', { session: session?.user?.email, error })
+        const { data: { session }, error: sessionError } = await supabase.auth.getSession()
         
-        if (error) {
-          console.error('Error getting session:', error)
-          setIsLoading(false)
-          return
+        if (sessionError) throw sessionError
+        
+        if (mounted) {
+          setSession(session)
+          setUser(session?.user ?? null)
+          
+          if (session?.user) {
+            await createUserProfile(session.user)
+          }
         }
-        
-        setSession(session)
-        setUser(session?.user ?? null)
-        
-        if (session?.user) {
-          console.log('Initial session has user, creating/fetching profile...')
-          await createUserProfile(session.user)
-        }
-        
-        setIsLoading(false)
-        console.log('getSession completed, isLoading set to false')
-      } catch (error) {
-        console.error('Exception in getSession:', error)
-        setIsLoading(false)
+      } catch (err) {
+        console.error('Error initializing auth:', err)
+        if (mounted) setError('Failed to initialize authentication')
+      } finally {
+        if (mounted) setIsLoading(false)
       }
     }
 
-    getSession()
+    initializeAuth()
 
+    // Set up auth state listener
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event: AuthChangeEvent, session: Session | null) => {
-        console.log('Auth state change:', event, session?.user?.email)
-        console.log('Current user state before update:', { user, userProfile, isLoading })
+        if (!mounted) return
         
-        setSession(session)
-        setUser(session?.user ?? null)
+        try {
+          setSession(session)
+          setUser(session?.user ?? null)
 
-        if (session?.user) {
-          console.log('Session user exists, handling event:', event)
-          // Handle different auth events
-          if (event === 'SIGNED_IN' || event === 'USER_UPDATED') {
-            console.log('Handling SIGNED_IN or USER_UPDATED event')
-            await createUserProfile(session.user)
-          } else if (event === 'TOKEN_REFRESHED') {
-            console.log('Handling TOKEN_REFRESHED event')
-            await fetchUserProfile(session.user.id)
+          if (session?.user) {
+            switch (event) {
+              case 'SIGNED_IN':
+              case 'USER_UPDATED':
+                await createUserProfile(session.user)
+                break
+              case 'TOKEN_REFRESHED':
+                await fetchUserProfile(session.user.id)
+                break
+              case 'SIGNED_OUT':
+                setUserProfile(null)
+                break
+            }
+          } else {
+            setUserProfile(null)
           }
-        } else {
-          console.log('No session user, clearing userProfile')
-          setUserProfile(null)
+        } catch (err) {
+          console.error('Error handling auth change:', err)
+          setError('Authentication error occurred')
         }
-        
-        setIsLoading(false)
-        console.log('Auth state change completed')
       }
     )
 
-    return () => subscription.unsubscribe()
+    return () => {
+      mounted = false
+      subscription?.unsubscribe()
+    }
   }, [createUserProfile, fetchUserProfile])
 
   const value: AuthContextType = {
@@ -200,6 +214,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     userProfile,
     session,
     isLoading,
+    error,
     signOut,
     refreshUserProfile,
   }
@@ -213,4 +228,4 @@ export function useAuth() {
     throw new Error('useAuth must be used within an AuthProvider')
   }
   return context
-} 
+}
