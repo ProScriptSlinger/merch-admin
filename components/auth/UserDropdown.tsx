@@ -15,8 +15,8 @@ import {
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 
 export function UserDropdown() {
-  const { userProfile, signOut } = useAuth()
-  console.log(userProfile);
+  const { user, signOut } = useAuth()
+  console.log(user);
   return (
     <>
       {/* Botón SCANEAR QR */}
@@ -33,7 +33,7 @@ export function UserDropdown() {
         <DropdownMenuTrigger asChild>
           <Button variant="ghost" className="relative h-8 w-8 rounded-full">
             <Avatar className="h-8 w-8">
-              <AvatarImage src={userProfile?.avatar_url || ''} alt={userProfile?.full_name || ''} />
+              <AvatarImage src={user?.user_metadata?.avatar_url || ''} alt={user?.user_metadata?.name || ''} />
               <AvatarFallback>
                 <User className="h-4 w-4" />
               </AvatarFallback>
@@ -44,13 +44,13 @@ export function UserDropdown() {
           <DropdownMenuLabel className="font-normal">
             <div className="flex flex-col space-y-1">
               <p className="text-sm font-medium leading-none">
-                {userProfile?.full_name || 'Usuario'}
+                {user?.user_metadata?.name || 'Usuario'}
               </p>
               <p className="text-xs leading-none text-muted-foreground">
-                {userProfile?.email}
+                {user?.email}
               </p>
               <p className="text-xs leading-none text-muted-foreground">
-                Rol: {userProfile?.role}
+                Rol: {user?.user_metadata?.role || "admin"}
               </p>
             </div>
           </DropdownMenuLabel>

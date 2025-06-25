@@ -31,25 +31,6 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const [isLoading, setIsLoading] = useState(true);
   const router = useRouter();
 
-  const getUserProfile = useCallback(async (userId: string) => {
-    try {
-      setIsLoading(true);
-      const { data, error } = await supabase
-        .from("profiles")
-        .select("*, qr_id(*)")
-        .eq("id", userId)
-        .single();
-
-      if (error) throw error;
-      return data;
-    } catch (error) {
-      console.error("Error fetching user profile:", error);
-      return null;
-    } finally {
-      setIsLoading(false);
-    }
-  }, []);
-
   const signOut = useCallback(async () => {
     try {
       await supabaseClient.auth.signOut();
@@ -78,7 +59,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     } finally {
       setIsLoading(false);
     }
-  }, [getUserProfile]);
+  }, []);
 
 
   useEffect(() => {
