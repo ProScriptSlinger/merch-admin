@@ -248,7 +248,7 @@ export interface Database {
           customer_name: string
           customer_email: string
           qr_code: string | null
-          status: 'pending' | 'delivered' | 'cancelled' | 'returned'
+          status: 'pending' | 'delivered' | 'cancelled' | 'returned' | 'waiting_payment'
           payment_method: 'POS' | 'Efectivo' | 'QR_MercadoPago' | 'Transferencia' | null
           payment_validated: boolean
           total_amount: number

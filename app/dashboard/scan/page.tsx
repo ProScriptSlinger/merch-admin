@@ -43,18 +43,18 @@ export default function ScanPage() {
   const [message, setMessage] = useState("")
   const [messageType, setMessageType] = useState<"success" | "error" | "info">("info")
   const [showEditDialog, setShowEditDialog] = useState(false)
-  const [orderStatus, setOrderStatus] = useState<"pending" | "delivered" | "cancelled">("pending")
+  const [orderStatus, setOrderStatus] = useState<"pending" | "delivered" | "cancelled" | "waiting_payment">("pending")
   const [activeTab, setActiveTab] = useState("delivery")
   const [isScanning, setIsScanning] = useState(false)
   const [scannerError, setScannerError] = useState("")
   const [isLoading, setIsLoading] = useState(false)
   const [orders, setOrders] = useState<OrderWithDetails[]>([])
+  const fetchOrders = async () => {
+    const orders = await getOrders()
+    console.log(orders)
+    setOrders(orders)
+  }
   useEffect(() => {
-    const fetchOrders = async () => {
-      const orders = await getOrders()
-      console.log(orders)
-      setOrders(orders)
-    }
     fetchOrders()
   }, [])
 
@@ -108,6 +108,8 @@ export default function ScanPage() {
         status: "delivered",
         delivery_timestamp: new Date().toISOString(),
       })
+
+      fetchOrders()
 
       setOrderStatus("delivered")
       setMessage("🎉 ✅ Entrega registrada con éxito.")
@@ -479,7 +481,13 @@ export default function ScanPage() {
                       className="flex flex-col h-auto p-3 text-xs border-blue-200 dark:border-blue-700 hover:bg-blue-50 dark:hover:bg-blue-950/50"
                     >
                       <code className="font-mono font-bold text-blue-600 dark:text-blue-400">{order.qr_code}</code>
-                      <Badge variant={'outline'} className={`text-muted-foreground mt-1 ${order.status === "delivered" ? "text-green-600" : order.status === "cancelled" ? "text-red-600" : "text-blue-600"}`}>Status: {order.status}</Badge>
+                      <Badge variant={'outline'} className={`text-muted-foreground mt-1 ${
+                        order.status === "delivered" ? "text-green-600" :
+                        order.status === "cancelled" ? "text-red-600" :
+                        order.status === "waiting_payment" ? "text-yellow-600" :
+                        order.status === "pending" || order.status === "returned" ? "text-yellow-600" :
+                        "text-blue-600"
+                      }`}>Status: {order.status === "waiting_payment" ? "Pendiente de Pago" : order.status}</Badge>
                       <span className="text-muted-foreground mt-1">Stand: {order.stand?.name}</span>
                     </Button>
                   ))}
@@ -683,19 +691,21 @@ export default function ScanPage() {
                 )}
 
                 {/* Estado final */}
-                {orderStatus !== "pending" && (
+                {(orderStatus !== "pending" )&& (
                   <>
                     <Separator />
                     <div className={`p-6 rounded-lg border-2 ${getStatusColor()}`}>
                       <div className="flex items-center justify-center gap-3">
                         {getStatusIcon()}
                         <span className="text-xl font-semibold">
-                          {orderStatus === "delivered" ? "¡Entrega Completada!" : "Entrega Cancelada"}
+                          {orderStatus === "delivered" ? "¡Entrega Completada!" : orderStatus === "waiting_payment" ? "¡Pago Completado!" : "Entrega Cancelada"}
                         </span>
                       </div>
                       <p className="text-center mt-2 opacity-80">
                         {orderStatus === "delivered"
                           ? "El pedido ha sido entregado exitosamente al cliente."
+                          : orderStatus === "waiting_payment"
+                          ? "El pago del pedido ha sido completado exitosamente."
                           : "La entrega del pedido ha sido cancelada."}
                       </p>
                     </div>
