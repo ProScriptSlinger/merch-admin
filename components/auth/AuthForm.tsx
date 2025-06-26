@@ -74,7 +74,7 @@ export default function AuthForm() {
                     },
                   },
                 }}
-                providers={['google', 'github']}
+                // providers={['google', 'github']}
                 redirectTo={`${window.location.origin}/dashboard`}
                 showLinks={false}
                 view="sign_up"

@@ -70,7 +70,11 @@ export default function ScanPage() {
       // Buscar pedido por QR code en Supabase
       const order = await getOrderByQRCode(code.trim())
 
-      if (order) {
+      if (order && order.status === "pending") {
+        await updateOrder(order.id, {
+          status: "delivered",
+          delivery_timestamp: new Date().toISOString(),
+        })
         setScannedOrder(order)
         setOrderStatus(order.status as "pending" | "delivered" | "cancelled")
         setMessage("✅ Pedido encontrado - Revisa los detalles y selecciona una acción")
