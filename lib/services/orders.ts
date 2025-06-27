@@ -148,60 +148,7 @@ export async function createOrder(orderData: CreateOrderData): Promise<OrderWith
   }
 
   // Create order items
-  if (orderData.items.length > 0) {
-    const items = orderData.items.map(item => ({
-      order_id: order.id,
-      product_variant_id: item.product_variant_id,
-      quantity: item.quantity,
-      unit_price: item.unit_price,
-    }))
-
-    const { error: itemsError } = await supabase
-      .from('order_items')
-      .insert(items)
-
-    if (itemsError) {
-      throw new Error(`Error creating order items: ${itemsError.message}`)
-    }
-
-    // Update product variant quantities
-    for (const item of orderData.items) {
-      const { data: variant, error: fetchError } = await supabase
-        .from('product_variants')
-        .select('quantity')
-        .eq('id', item.product_variant_id)
-        .single()
-
-      if (fetchError) {
-        console.error(`Error fetching variant ${item.product_variant_id}:`, fetchError)
-        continue
-      }
-
-      const newQuantity = Math.max(0, variant.quantity - item.quantity)
-
-      const { error: updateError } = await supabase
-        .from('product_variants')
-        .update({ quantity: newQuantity })
-        .eq('id', item.product_variant_id)
-
-      if (updateError) {
-        console.error(`Error updating variant ${item.product_variant_id}:`, updateError)
-        continue
-      }
-
-      // Log stock movement
-      await supabase
-        .from('stock_movements')
-        .insert({
-          product_variant_id: item.product_variant_id,
-          movement_type: 'out',
-          quantity: -item.quantity,
-          previous_quantity: variant.quantity,
-          new_quantity: newQuantity,
-          reason: `Order ${order.id}`,
-        })
-    }
-  }
+  
 
   return getOrder(order.id) as Promise<OrderWithDetails>
 }
