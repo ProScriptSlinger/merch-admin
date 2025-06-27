@@ -495,7 +495,7 @@ export default function ScanPage() {
                             }`}>{order.payment_method === "card" ? "Pago con Tarjeta" : order.payment_method}</Badge>
                         </div>
 
-                        <span className="text-muted-foreground mt-1">Stand: {order.stand?.name}</span>
+                        <span className="text-muted-foreground mt-1">Stand: {order.stand?.name || "admin"}</span>
                       </Button>
                     ))}
                   </div>

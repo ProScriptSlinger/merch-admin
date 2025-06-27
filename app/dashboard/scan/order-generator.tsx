@@ -24,7 +24,7 @@ import {
 } from "lucide-react"
 import { getProducts, type ProductWithDetails } from "@/lib/services/products"
 import { getUsers, type UserProfile } from "@/lib/services/users"
-import { createOrder, getOrders, type CreateOrderData, type OrderWithDetails } from "@/lib/services/orders"
+import { createOrder, getOrders, updateOrder, type CreateOrderData, type OrderWithDetails } from "@/lib/services/orders"
 import Image from "next/image"
 import { generateQRCode } from "@/lib/utils"
 import { QRCodeSVG } from "qrcode.react"
@@ -193,7 +193,7 @@ export function OrderGenerator() {
         setPaymentStatus("waiting")
         setIsProcessingPayment(false)
         const order = await createOrder(orderData);
-
+        updateOrder(order.id, {status: "delivered"})
         if(selectedPayment.id === "card") {
           const res = await fetch("/api/payment", {
             method: "POST",
@@ -554,7 +554,7 @@ export function OrderGenerator() {
                         <>
                           <selectedPayment.icon className="h-5 w-5 mr-2" />
                           <span className="truncate">
-                            {`Procesar Pago ${selectedPayment.name}`}
+                            {`Confirmar Pago ${selectedPayment.name}`}
                           </span>
                         </>
                       )}
