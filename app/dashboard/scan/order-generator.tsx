@@ -107,7 +107,7 @@ export function OrderGenerator() {
     fetchData()
   }, [])
 
-  const selectedCustomer = customers.find((c) => c.id === selectedCustomerId)
+  const selectedCustomer = selectedCustomerId === 'anonymous' ? {id: 'anonymous', email: 'anonymous', full_name: 'Anonymous'} : customers.find((c) => c.id === selectedCustomerId)
   const selectedPayment = paymentMethods.find((p) => p.id === selectedPaymentMethod)
 
   const addProduct = () => {
@@ -172,7 +172,7 @@ export function OrderGenerator() {
     try {
       // Create order data for Supabase
       const orderData: CreateOrderData = {
-        user_id: selectedCustomer.id,
+        user_id: selectedCustomer.id === 'anonymous' ? null : selectedCustomer.id,
         // customer_id: selectedCustomer.id,
         customer_email: selectedCustomer.email,
         payment_method: selectedPayment.id as any,
