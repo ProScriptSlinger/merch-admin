@@ -170,15 +170,45 @@ export async function createOrder(orderData: CreateOrderData): Promise<OrderWith
 
 // Update order
 export async function updateOrder(id: string, orderData: UpdateOrderData): Promise<OrderWithDetails> {
-  const { error } = await supabase
+  const res = await supabase
     .from('orders')
     .update(orderData)
     .eq('id', id)
     
 
-  if (error) {
-    throw new Error(`Error updating order: ${error.message}`)
-  }
+    if(orderData?.status === "delivered") {
+
+      const { data: order, error: orderError } = await supabase
+        .from('orders')
+        .select('*, items:order_items(*)')
+        .eq('id', id)
+        .single()
+
+      if(orderError) {
+        throw new Error(`Error fetching order: ${orderError.message}`)
+      }
+      //reduce stock
+      for(const item of order?.items) {
+
+        const { data: variant, error: fetchError } = await supabase
+          .from('product_variants')
+          .select('quantity')
+          .eq('id', item.product_variant_id)
+          .single()
+
+        if(fetchError) {
+          throw new Error(`Error fetching variant ${item.product_variant_id}: ${fetchError.message}`)
+        }
+
+        const newQuantity = Math.max(0, variant.quantity - item.quantity)
+
+        const { error: updateError } = await supabase
+          .from('product_variants')
+          .update({ quantity: newQuantity })
+          .eq('id', item.product_variant_id)
+      }
+        
+    }
 
   return getOrder(id) as Promise<OrderWithDetails>
 }
