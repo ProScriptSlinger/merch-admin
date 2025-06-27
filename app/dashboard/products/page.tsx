@@ -128,7 +128,7 @@ export default function ProductsPage() {
               <PlusCircle className="mr-2 h-5 w-5" /> Agregar Nuevo Producto
             </Button>
           </DialogTrigger>
-          <DialogContent className="sm:max-w-2xl">
+          <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle>
                 {editingProduct ? "Editar Producto" : "Agregar Nuevo Producto"}
