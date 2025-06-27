@@ -19,7 +19,7 @@ interface ProductFormProps {
   product?: ProductWithDetails | null // Optional product for editing
 }
 
-const SIZES = ["S", "M", "L", "XL", "XXL"]
+const SIZES = ["S", "M", "L", "XL"]
 
 interface ImageFile {
   file: File
