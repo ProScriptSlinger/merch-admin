@@ -148,7 +148,22 @@ export async function createOrder(orderData: CreateOrderData): Promise<OrderWith
   }
 
   // Create order items
-  
+  if (orderData.items.length > 0) {
+    const items = orderData.items.map(item => ({
+      order_id: order.id,
+      product_variant_id: item.product_variant_id,
+      quantity: item.quantity,
+      unit_price: item.unit_price,
+    }))
+
+    const { error: itemsError } = await supabase
+      .from('order_items')
+      .insert(items)
+
+    if (itemsError) {
+      throw new Error(`Error creating order items: ${itemsError.message}`)
+    }
+  }
 
   return getOrder(order.id) as Promise<OrderWithDetails>
 }
@@ -159,6 +174,7 @@ export async function updateOrder(id: string, orderData: UpdateOrderData): Promi
     .from('orders')
     .update(orderData)
     .eq('id', id)
+    
 
   if (error) {
     throw new Error(`Error updating order: ${error.message}`)
