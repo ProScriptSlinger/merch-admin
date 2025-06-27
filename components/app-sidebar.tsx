@@ -30,11 +30,11 @@ const navItems: NavItem[] = [
     href: "/dashboard/products",
     icon: Package,
   },
-  {
-    title: "Stands",
-    href: "/dashboard/stands",
-    icon: Store,
-  },
+  // {
+  //   title: "Stands",
+  //   href: "/dashboard/stands",
+  //   icon: Store,
+  // },
   {
     title: "Usuarios",
     href: "/dashboard/users",
