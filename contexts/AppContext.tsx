@@ -51,7 +51,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
               title: "Order change detected",
               description: "Refreshing sales data...",
             })
-            fetchSales();
+            fetchOrders();
           } catch (err) {
             console.error("Error processing order update:", err);
           }

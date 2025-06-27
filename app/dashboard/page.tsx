@@ -84,8 +84,6 @@ export default function DashboardOverviewPage() {
           quantity: sale.items.reduce((sum, item) => sum + item.quantity, 0),
         }))
 
-      console.log('recentDeliveries ------>',recentDeliveries, sales)
-        console.log('products ------>',products)
       // Get low stock products
       const lowStockProducts = products
         .filter(product => {

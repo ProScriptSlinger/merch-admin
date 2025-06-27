@@ -23,7 +23,7 @@ import {
   Loader2,
 } from "lucide-react"
 import { getUsers, type UserProfile } from "@/lib/services/users"
-import { useAuth } from "@/contexts/AuthContext"
+// import { useAuth } from "@/contexts/AuthContext"
 import { useToast } from "@/hooks/use-toast"
 
 export default function UsersPage() {

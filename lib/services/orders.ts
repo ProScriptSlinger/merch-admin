@@ -6,6 +6,7 @@ type OrderItem = Database['public']['Tables']['order_items']['Row']
 type ProductVariant = Database['public']['Tables']['product_variants']['Row']
 type Stand = Database['public']['Tables']['stands']['Row']
 type User = Database['public']['Tables']['users']['Row']
+type Transaction = Database['public']['Tables']['transactions']['Row']
 
 export interface OrderWithDetails extends Order {
   items: (OrderItem & {
@@ -27,16 +28,17 @@ export interface OrderWithDetails extends Order {
   stand: Stand | null
   delivered_by_stand: Stand | null
   user: User | null
+  transaction?: Transaction[] | []
 }
 
 export interface CreateOrderData {
   user_id?: string | null
-  customer_name: string
+  customer_id?: string | null
   customer_email: string
   qr_code?: string | null
-  payment_method?: 'POS' | 'Efectivo' | 'QR_MercadoPago' | 'Transferencia' | null
+  payment_method?: "cash" | "card" 
   total_amount: number
-  sale_type?: 'POS' | 'Online'
+  status?: 'waiting_payment' | 'pending' | 'delivered' | 'cancelled' | 'returned'
   stand_id?: string | null
   items: Array<{
     product_variant_id: string
@@ -130,13 +132,13 @@ export async function createOrder(orderData: CreateOrderData): Promise<OrderWith
     .from('orders')
     .insert({
       user_id: orderData.user_id,
-      customer_name: orderData.customer_name,
+      customer_id: orderData.customer_id,
       customer_email: orderData.customer_email,
       qr_code: qrCode,
       payment_method: orderData.payment_method,
       total_amount: orderData.total_amount,
-      sale_type: orderData.sale_type || 'POS',
       stand_id: orderData.stand_id,
+      status: orderData.status || "waiting_payment",
     })
     .select()
     .single()
@@ -293,7 +295,7 @@ export async function getOrdersByStatus(status: Order['status']): Promise<OrderW
 }
 
 // Get order by QR code
-export async function getOrderByQRCode(qrCode: string): Promise<OrderWithDetails | null> {
+export async function getOrderByQRCode(qrCode: string): Promise<any | null> {
   const { data: order, error } = await supabase
     .from('orders')
     .select(`
@@ -309,6 +311,7 @@ export async function getOrderByQRCode(qrCode: string): Promise<OrderWithDetails
           )
         )
       ),
+      transaction:transactions!transactions_order_id_fkey(*)
       stand:stands!stand_id(*),
       delivered_by_stand:stands!delivered_by_stand_id(*),
       user:users(*)
@@ -324,4 +327,4 @@ export async function getOrderByQRCode(qrCode: string): Promise<OrderWithDetails
   }
 
   return order
-} 
+}

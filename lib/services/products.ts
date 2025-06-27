@@ -40,13 +40,13 @@ export interface UpdateProductData {
 }
 
 // Create a service role client for admin operations
-const createServiceClient = async () => {
-  return createClient()
-}
+const serviceClient = createClient()
+  
+const supabase = createClient()
 
 // Fetch all products with details
 export async function getProducts(): Promise<ProductWithDetails[]> {
-  const supabase = await createServiceClient()
+  
   const { data: products, error: productsError } = await supabase
     .from('products')
     .select(`
@@ -69,7 +69,7 @@ export async function getProducts(): Promise<ProductWithDetails[]> {
 
 // Fetch single product with details
 export async function getProduct(id: string): Promise<ProductWithDetails | null> {
-  const supabase = await createServiceClient()
+  // const supabase = await createServiceClient()
   const { data: product, error } = await supabase
     .from('products')
     .select(`
@@ -96,9 +96,9 @@ export async function getProduct(id: string): Promise<ProductWithDetails | null>
 
 // Create new product (using service role for admin operations)
 export async function createProduct(productData: CreateProductData): Promise<ProductWithDetails> {
-  const serviceClient = await createServiceClient()
+  // const serviceClient = await createServiceClient()
   
-  const { data: product, error: productError } = await serviceClient
+  const { data: product, error: productError } = await supabase
     .from('products')
     .insert({
       name: productData.name,
@@ -122,7 +122,7 @@ export async function createProduct(productData: CreateProductData): Promise<Pro
       price: variant.price,
     }))
 
-    const { error: variantsError } = await serviceClient
+    const { error: variantsError } = await supabase
       .from('product_variants')
       .insert(variants)
 
@@ -140,7 +140,7 @@ export async function createProduct(productData: CreateProductData): Promise<Pro
       sort_order: index,
     }))
 
-    const { error: imagesError } = await serviceClient
+    const { error: imagesError } = await supabase
       .from('product_images')
       .insert(images)
 
@@ -154,9 +154,9 @@ export async function createProduct(productData: CreateProductData): Promise<Pro
 
 // Update product (using service role for admin operations)
 export async function updateProduct(id: string, productData: UpdateProductData): Promise<ProductWithDetails> {
-  const serviceClient = await createServiceClient()
+  // const serviceClient = await createServiceClient()
   
-  const { error: productError } = await serviceClient
+  const { error: productError } = await supabase
     .from('products')
     .update({
       name: productData.name,
@@ -173,7 +173,7 @@ export async function updateProduct(id: string, productData: UpdateProductData):
   // Update variants if provided
   if (productData.variants) {
     // Delete existing variants
-    const { error: deleteError } = await serviceClient
+    const { error: deleteError } = await supabase
       .from('product_variants')
       .delete()
       .eq('product_id', id)
@@ -190,7 +190,7 @@ export async function updateProduct(id: string, productData: UpdateProductData):
       price: variant.price,
     }))
 
-    const { error: variantsError } = await serviceClient
+    const { error: variantsError } = await supabase
       .from('product_variants')
       .insert(variants)
 
@@ -233,7 +233,7 @@ export async function updateProduct(id: string, productData: UpdateProductData):
 
 // Delete product (using service role for admin operations)
 export async function deleteProduct(id: string): Promise<void> {
-  const serviceClient = await createServiceClient()
+  // const serviceClient = await createServiceClient()
   
   const { error } = await serviceClient
     .from('products')
@@ -247,7 +247,7 @@ export async function deleteProduct(id: string): Promise<void> {
 
 // Fetch categories
 export async function getCategories(): Promise<Category[]> {
-  const supabase = await createServiceClient()
+  // const supabase = await createServiceClient()
   const { data, error } = await supabase
     .from('categories')
     .select('*')
@@ -266,7 +266,7 @@ export async function updateProductVariantQuantity(
   quantity: number,
   reason: string = 'Manual adjustment'
 ): Promise<void> {
-  const supabase = await createServiceClient()
+  // const supabase = await createServiceClient()
   // Get current quantity
   const { data: variant, error: fetchError } = await supabase
     .from('product_variants')

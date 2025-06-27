@@ -237,11 +237,11 @@ export interface Database {
         Row: {
           id: string
           user_id: string | null
-          customer_name: string
+          customer_id: string | null
           customer_email: string
           qr_code: string | null
           status: 'pending' | 'delivered' | 'cancelled' | 'returned' | 'waiting_payment'
-          payment_method: 'POS' | 'Efectivo' | 'QR_MercadoPago' | 'Transferencia' | null
+          payment_method: "cash" | "card" | null
           payment_validated: boolean
           total_amount: number
           sale_type: 'POS' | 'Online'
@@ -259,11 +259,11 @@ export interface Database {
         Insert: {
           id?: string
           user_id?: string | null
-          customer_name: string
+          customer_id: string | null
           customer_email: string
           qr_code?: string | null
           status?: 'pending' | 'delivered' | 'cancelled' | 'returned'
-          payment_method?: 'POS' | 'Efectivo' | 'QR_MercadoPago' | 'Transferencia' | null
+          payment_method?: "cash" | "card" | null
           payment_validated?: boolean
           total_amount: number
           sale_type?: 'POS' | 'Online'
@@ -281,11 +281,11 @@ export interface Database {
         Update: {
           id?: string
           user_id?: string | null
-          customer_name?: string
+          customer_id?: string | null
           customer_email?: string
           qr_code?: string | null
           status?: 'pending' | 'delivered' | 'cancelled' | 'returned'
-          payment_method?: 'POS' | 'Efectivo' | 'QR_MercadoPago' | 'Transferencia' | null
+          payment_method?: "cash" | "card" | null
           payment_validated?: boolean
           total_amount?: number
           sale_type?: 'POS' | 'Online'
@@ -363,6 +363,14 @@ export interface Database {
           reason?: string | null
           user_id?: string | null
           created_at?: string
+        }
+      }
+      transactions: {
+        Row: {
+          id: string
+          order_id: string
+          payment_url: string
+          created_at: string
         }
       }
     }

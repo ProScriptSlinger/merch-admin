@@ -70,11 +70,7 @@ export default function ScanPage() {
       // Buscar pedido por QR code en Supabase
       const order = await getOrderByQRCode(code.trim())
 
-      if (order && order.status === "pending") {
-        await updateOrder(order.id, {
-          status: "delivered",
-          delivery_timestamp: new Date().toISOString(),
-        })
+      if (order) {
         setScannedOrder(order)
         setOrderStatus(order.status as "pending" | "delivered" | "cancelled")
         setMessage("✅ Pedido encontrado - Revisa los detalles y selecciona una acción")
@@ -348,186 +344,192 @@ export default function ScanPage() {
           </TabsTrigger>
         </TabsList>
 
-        {/* Input QR común */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <QrCode className="h-5 w-5 text-blue-600" />
-              Escanear Código QR
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="qr-input">Código QR</Label>
-              <div className="flex gap-2">
-                <Input
-                  id="qr-input"
-                  placeholder="Escanea o ingresa el código QR..."
-                  value={qrCode}
-                  onChange={(e) => setQrCode(e.target.value)}
-                  onKeyPress={(e) => e.key === "Enter" && handleQRSubmit()}
-                  className="font-mono text-center"
-                />
-                <Button
-                  onClick={() => handleQRSubmit()}
-                  disabled={!qrCode.trim() || isLoading}
-                  className="px-6"
-                >
-                  <QrCode className="h-4 w-4 mr-2" />
-                  {isLoading ? "Buscando..." : "Buscar"}
-                </Button>
-                <Button
-                  onClick={() => isScanning ? setIsScanning(false) : handleStartScanning()}
-                  variant={isScanning ? "destructive" : "secondary"}
-                  className="px-6"
-                >
-                  {isScanning ? (
-                    <>
-                      <CameraOff className="h-4 w-4 mr-2" />
-                      Detener
-                    </>
-                  ) : (
-                    <>
-                      <Camera className="h-4 w-4 mr-2" />
-                      Cámara
-                    </>
-                  )}
-                </Button>
-              </div>
-              <p className="text-xs text-muted-foreground">
-                💡 Si no tienes cámara, puedes ingresar el código QR manualmente en el campo de texto.
-              </p>
-            </div>
 
-            {/* Camera View */}
-            {isScanning && (
-              <div className="space-y-4 ">
-                <div className="flex justify-center">
-                  <div className="relative bg-black rounded-lg overflow-hidden w-[400px] h-[400px] text-center">
-                    <QrReader
-                      onScan={handleQRScan}
-                      onError={handleScanError}
-                      className="w-[400px] h-[400px] object-cover"
-                    />
-                    <div className="absolute inset-0 border-2 border-dashed border-white/50 m-8 rounded-lg flex items-center justify-center pointer-events-none">
-                      <div className="text-white text-center">
-                        <QrCode className="h-12 w-12 mx-auto mb-2 opacity-75" />
-                        <p className="text-sm opacity-75">Apunta la cámara hacia el código QR</p>
+        {/* Tab Content */}
+        <TabsContent value="delivery" className="space-y-6">
+          {/* Input QR común */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <QrCode className="h-5 w-5 text-blue-600" />
+                Escanear Código QR
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="qr-input">Código QR</Label>
+                <div className="flex gap-2">
+                  <Input
+                    id="qr-input"
+                    placeholder="Escanea o ingresa el código QR..."
+                    value={qrCode}
+                    onChange={(e) => setQrCode(e.target.value)}
+                    onKeyPress={(e) => e.key === "Enter" && handleQRSubmit()}
+                    className="font-mono text-center"
+                  />
+                  <Button
+                    onClick={() => handleQRSubmit()}
+                    disabled={!qrCode.trim() || isLoading}
+                    className="px-6"
+                  >
+                    <QrCode className="h-4 w-4 mr-2" />
+                    {isLoading ? "Buscando..." : "Buscar"}
+                  </Button>
+                  <Button
+                    onClick={() => isScanning ? setIsScanning(false) : handleStartScanning()}
+                    variant={isScanning ? "destructive" : "secondary"}
+                    className="px-6"
+                  >
+                    {isScanning ? (
+                      <>
+                        <CameraOff className="h-4 w-4 mr-2" />
+                        Detener
+                      </>
+                    ) : (
+                      <>
+                        <Camera className="h-4 w-4 mr-2" />
+                        Cámara
+                      </>
+                    )}
+                  </Button>
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  💡 Si no tienes cámara, puedes ingresar el código QR manualmente en el campo de texto.
+                </p>
+              </div>
+
+              {/* Camera View */}
+              {isScanning && (
+                <div className="space-y-4 ">
+                  <div className="flex justify-center">
+                    <div className="relative bg-black rounded-lg overflow-hidden w-[400px] h-[400px] text-center">
+                      <QrReader
+                        onScan={handleQRScan}
+                        onError={handleScanError}
+                        className="w-[400px] h-[400px] object-cover"
+                      />
+                      <div className="absolute inset-0 border-2 border-dashed border-white/50 m-8 rounded-lg flex items-center justify-center pointer-events-none">
+                        <div className="text-white text-center">
+                          <QrCode className="h-12 w-12 mx-auto mb-2 opacity-75" />
+                          <p className="text-sm opacity-75">Apunta la cámara hacia el código QR</p>
+                        </div>
+                      </div>
+                      {/* Scanning animation overlay */}
+                      <div className="absolute inset-0 pointer-events-none">
+                        <div className="absolute top-1/2 left-0 right-0 h-0.5 bg-red-500 animate-pulse"></div>
                       </div>
                     </div>
-                    {/* Scanning animation overlay */}
-                    <div className="absolute inset-0 pointer-events-none">
-                      <div className="absolute top-1/2 left-0 right-0 h-0.5 bg-red-500 animate-pulse"></div>
+                  </div>
+                  <div className="text-center space-y-2">
+                    <p className="text-sm text-muted-foreground">
+                      📱 Posiciona el código QR dentro del marco para escanearlo automáticamente
+                    </p>
+                    <div className="bg-blue-50 dark:bg-blue-950/30 p-3 rounded-lg border border-blue-200 dark:border-blue-800">
+                      <p className="text-xs text-blue-800 dark:text-blue-200">
+                        💡 <strong>Consejos:</strong> Asegúrate de que la cámara esté bien iluminada y el código QR esté limpio y visible.
+                      </p>
+                      <p className="text-xs text-blue-700 dark:text-blue-300 mt-1">
+                        🌐 <strong>Compatibilidad:</strong> Funciona mejor en Chrome, Firefox y Safari. Asegúrate de usar HTTPS en producción.
+                      </p>
                     </div>
                   </div>
                 </div>
-                <div className="text-center space-y-2">
-                  <p className="text-sm text-muted-foreground">
-                    📱 Posiciona el código QR dentro del marco para escanearlo automáticamente
+              )}
+
+              {/* Scanner Error */}
+              {scannerError && (
+                <Alert className="border-red-200 bg-red-50 dark:border-red-800 dark:bg-red-950/30">
+                  <AlertCircle className="h-4 w-4 text-red-600 dark:text-red-400" />
+                  <AlertDescription className="text-red-800 dark:text-red-200">
+                    {scannerError}
+                    {scannerError.includes("No camera found") && (
+                      <div className="mt-2 text-sm">
+                        💡 <strong>Alternativa:</strong> Puedes ingresar el código QR manualmente en el campo de texto arriba.
+                      </div>
+                    )}
+                  </AlertDescription>
+                </Alert>
+              )}
+
+              {/* Códigos de prueba */}
+              <div className="p-4 bg-gradient-to-r from-blue-50 to-purple-50 dark:from-blue-950/50 dark:to-purple-950/50 rounded-lg border border-blue-200 dark:border-blue-800">
+                <div className="flex items-center gap-2 mb-3">
+                  <Package className="h-4 w-4 text-blue-600 dark:text-blue-400" />
+                  <p className="text-sm font-medium text-blue-900 dark:text-blue-100">
+                    Códigos QR - Haz clic para probar:
                   </p>
-                  <div className="bg-blue-50 dark:bg-blue-950/30 p-3 rounded-lg border border-blue-200 dark:border-blue-800">
-                    <p className="text-xs text-blue-800 dark:text-blue-200">
-                      💡 <strong>Consejos:</strong> Asegúrate de que la cámara esté bien iluminada y el código QR esté limpio y visible.
-                    </p>
-                    <p className="text-xs text-blue-700 dark:text-blue-300 mt-1">
-                      🌐 <strong>Compatibilidad:</strong> Funciona mejor en Chrome, Firefox y Safari. Asegúrate de usar HTTPS en producción.
-                    </p>
+                </div>
+
+                <div className="h-[60vh] overflow-scroll">
+                  <p className="text-xs font-semibold text-blue-800 dark:text-blue-200 mb-2">
+                    📦 PEDIDOS (Para Entrega):
+                  </p>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
+                    {orders.map((order) => (
+                      <Button
+                        key={order.qr_code}
+                        variant="outline"
+                        size="sm"
+                        onClick={() => {
+                          setQrCode(order.qr_code || "")
+                          handleQRSubmit(order.qr_code || "")
+                        }}
+                        className="flex flex-col h-auto p-3 text-xs border-blue-200 dark:border-blue-700 hover:bg-blue-50 dark:hover:bg-blue-950/50"
+                      >
+                        <code className="font-mono font-bold text-blue-600 dark:text-blue-400">{order.qr_code}</code>
+                        <div className="flex items-center gap-2">
+                          <Badge variant={'outline'} className={`text-muted-foreground mt-1 ${order.status === "delivered" ? "text-green-600" :
+                              order.status === "cancelled" ? "text-red-600" :
+                                order.status === "waiting_payment" ? "text-yellow-600" :
+                                  order.status === "pending" || order.status === "returned" ? "text-yellow-600" :
+                                    "text-blue-600"
+                            }`}>{order.status === "waiting_payment" ? "Pendiente de Pago" : order.status}</Badge>
+                          <Badge variant={'outline'} className={`text-muted-foreground mt-1 ${order.payment_method === "card" ? "text-green-600" :
+                              "text-blue-600"
+                            }`}>{order.payment_method === "card" ? "Pago con Tarjeta" : order.payment_method}</Badge>
+                        </div>
+
+                        <span className="text-muted-foreground mt-1">Stand: {order.stand?.name}</span>
+                      </Button>
+                    ))}
                   </div>
                 </div>
               </div>
-            )}
 
-            {/* Scanner Error */}
-            {scannerError && (
-              <Alert className="border-red-200 bg-red-50 dark:border-red-800 dark:bg-red-950/30">
-                <AlertCircle className="h-4 w-4 text-red-600 dark:text-red-400" />
-                <AlertDescription className="text-red-800 dark:text-red-200">
-                  {scannerError}
-                  {scannerError.includes("No camera found") && (
-                    <div className="mt-2 text-sm">
-                      💡 <strong>Alternativa:</strong> Puedes ingresar el código QR manualmente en el campo de texto arriba.
-                    </div>
-                  )}
-                </AlertDescription>
-              </Alert>
-            )}
-
-            {/* Códigos de prueba */}
-            <div className="p-4 bg-gradient-to-r from-blue-50 to-purple-50 dark:from-blue-950/50 dark:to-purple-950/50 rounded-lg border border-blue-200 dark:border-blue-800">
-              <div className="flex items-center gap-2 mb-3">
-                <Package className="h-4 w-4 text-blue-600 dark:text-blue-400" />
-                <p className="text-sm font-medium text-blue-900 dark:text-blue-100">
-                  Códigos QR - Haz clic para probar:
-                </p>
-              </div>
-
-              <div>
-                <p className="text-xs font-semibold text-blue-800 dark:text-blue-200 mb-2">
-                  📦 PEDIDOS (Para Entrega):
-                </p>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
-                  {orders.map((order) => (
-                    <Button
-                      key={order.qr_code}
-                      variant="outline"
-                      size="sm"
-                      onClick={() => {
-                        setQrCode(order.qr_code || "")
-                        handleQRSubmit(order.qr_code || "")
-                      }}
-                      className="flex flex-col h-auto p-3 text-xs border-blue-200 dark:border-blue-700 hover:bg-blue-50 dark:hover:bg-blue-950/50"
-                    >
-                      <code className="font-mono font-bold text-blue-600 dark:text-blue-400">{order.qr_code}</code>
-                      <Badge variant={'outline'} className={`text-muted-foreground mt-1 ${
-                        order.status === "delivered" ? "text-green-600" :
-                        order.status === "cancelled" ? "text-red-600" :
-                        order.status === "waiting_payment" ? "text-yellow-600" :
-                        order.status === "pending" || order.status === "returned" ? "text-yellow-600" :
-                        "text-blue-600"
-                      }`}>Status: {order.status === "waiting_payment" ? "Pendiente de Pago" : order.status}</Badge>
-                      <span className="text-muted-foreground mt-1">Stand: {order.stand?.name}</span>
-                    </Button>
-                  ))}
-                </div>
-              </div>
-            </div>
-
-            {message && (
-              <Alert
-                className={
-                  messageType === "error"
-                    ? "border-red-200 bg-red-50 dark:border-red-800 dark:bg-red-950/30"
-                    : messageType === "success"
-                      ? "border-green-200 bg-green-50 dark:border-green-800 dark:bg-green-950/30"
-                      : "border-blue-200 bg-blue-50 dark:border-blue-800 dark:bg-blue-950/30"
-                }
-              >
-                <AlertCircle
-                  className={`h-4 w-4 ${messageType === "error"
+              {message && (
+                <Alert
+                  className={
+                    messageType === "error"
+                      ? "border-red-200 bg-red-50 dark:border-red-800 dark:bg-red-950/30"
+                      : messageType === "success"
+                        ? "border-green-200 bg-green-50 dark:border-green-800 dark:bg-green-950/30"
+                        : "border-blue-200 bg-blue-50 dark:border-blue-800 dark:bg-blue-950/30"
+                  }
+                >
+                  <AlertCircle
+                    className={`h-4 w-4 ${messageType === "error"
                       ? "text-red-600 dark:text-red-400"
                       : messageType === "success"
                         ? "text-green-600 dark:text-green-400"
                         : "text-blue-600 dark:text-blue-400"
-                    }`}
-                />
-                <AlertDescription
-                  className={
-                    messageType === "error"
-                      ? "text-red-800 dark:text-red-200"
-                      : messageType === "success"
-                        ? "text-green-800 dark:text-green-200"
-                        : "text-blue-800 dark:text-blue-200"
-                  }
-                >
-                  {message}
-                </AlertDescription>
-              </Alert>
-            )}
-          </CardContent>
-        </Card>
+                      }`}
+                  />
+                  <AlertDescription
+                    className={
+                      messageType === "error"
+                        ? "text-red-800 dark:text-red-200"
+                        : messageType === "success"
+                          ? "text-green-800 dark:text-green-200"
+                          : "text-blue-800 dark:text-blue-200"
+                    }
+                  >
+                    {message}
+                  </AlertDescription>
+                </Alert>
+              )}
+            </CardContent>
+          </Card>
 
-        {/* Tab Content */}
-        <TabsContent value="delivery" className="space-y-6">
           {/* Detalle del pedido */}
           {scannedOrder && (
             <Card className="shadow-lg">
@@ -560,7 +562,7 @@ export default function ScanPage() {
                     </h3>
                     <div className="space-y-2 pl-7">
                       <div className="flex items-center gap-2">
-                        <span className="font-medium">{scannedOrder.customer_name}</span>
+                        <span className="font-medium">{scannedOrder.customer_id}</span>
                       </div>
                       <div className="flex items-center gap-2">
                         <Mail className="h-4 w-4 text-muted-foreground" />
@@ -654,6 +656,24 @@ export default function ScanPage() {
                 </div>
 
                 {/* Botones de acción */}
+                {orderStatus === "waiting_payment" && scannedOrder.payment_method == "cash" && (
+                  <>
+                    <Separator />
+                    <div className="flex flex-col sm:flex-row gap-3">
+                      <Button
+                        onClick={() => updateOrder(scannedOrder.id, {status: 'pending'})}
+                        disabled={isLoading}
+                        className="flex-1 h-12 text-lg font-semibold bg-green-600 hover:bg-green-700"
+                      >
+                        <CheckCircle className="h-5 w-5 mr-2" />
+                        {isLoading ? "Procesando..." : "✅ Confirmar pago en efectivo"}
+                      </Button>
+                    </div>
+                  </>
+                )}
+
+
+                {/* Botones de acción */}
                 {orderStatus === "pending" && (
                   <>
                     <Separator />
@@ -688,22 +708,34 @@ export default function ScanPage() {
                 )}
 
                 {/* Estado final */}
-                {(orderStatus !== "pending" )&& (
+                {(orderStatus !== "pending") && (
                   <>
                     <Separator />
                     <div className={`p-6 rounded-lg border-2 ${getStatusColor()}`}>
                       <div className="flex items-center justify-center gap-3">
                         {getStatusIcon()}
                         <span className="text-xl font-semibold">
-                          {orderStatus === "delivered" ? "¡Entrega Completada!" : orderStatus === "waiting_payment" ? "¡Pago Completado!" : "Entrega Cancelada"}
+                          {orderStatus === "delivered" ? "¡Entrega Completada!" : orderStatus === "waiting_payment" ? "Procesando el pedido" : "Entrega Cancelada"}
                         </span>
                       </div>
                       <p className="text-center mt-2 opacity-80">
                         {orderStatus === "delivered"
                           ? "El pedido ha sido entregado exitosamente al cliente."
                           : orderStatus === "waiting_payment"
-                          ? "El pago del pedido ha sido completado exitosamente."
-                          : "La entrega del pedido ha sido cancelada."}
+                            ? "El cliente no completó el pago"
+                            : "La entrega del pedido ha sido cancelada."}
+                      </p>
+                      <p className="text-center mt-2 opacity-80">
+                        {orderStatus === "waiting_payment" && scannedOrder.payment_method == "card"&&
+                          (
+                            <a href={scannedOrder?.transaction[0]?.payment_url} target="_blank">
+                              <Button>
+                                <CreditCard className="h-5 w-5 mr-2" />
+                                Pagar con Tarjeta
+                              </Button>
+                            </a>
+                          )
+                        }
                       </p>
                     </div>
                   </>
@@ -724,19 +756,11 @@ export default function ScanPage() {
         </TabsContent>
 
         <TabsContent value="payment" className="space-y-6">
-          <OrderGenerator/>
+          <OrderGenerator />
         </TabsContent>
       </Tabs>
 
-      {/* Botón para nuevo escaneo */}
-      {scannedOrder && (
-        <div className="text-center mt-8">
-          <Button onClick={resetScan} variant="outline" size="lg" className="px-8">
-            <QrCode className="h-4 w-4 mr-2" />
-            Escanear Nuevo QR
-          </Button>
-        </div>
-      )}
+
 
       {/* Dialog para editar pedido */}
       <EditOrderDialog

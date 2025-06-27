@@ -26,6 +26,8 @@ import { getProducts, type ProductWithDetails } from "@/lib/services/products"
 import { getUsers, type UserProfile } from "@/lib/services/users"
 import { createOrder, getOrders, type CreateOrderData, type OrderWithDetails } from "@/lib/services/orders"
 import Image from "next/image"
+import { generateQRCode } from "@/lib/utils"
+import { QRCodeSVG } from "qrcode.react"
 
 // Interface for order items
 interface OrderItem {
@@ -53,16 +55,14 @@ const paymentMethods = [
     name: "Tarjeta",
     icon: CreditCard,
     description: "Pago con tarjeta de débito/crédito",
-    color: "blue",
-    requiresQR: false,
+    color: "blue"
   },
   {
     id: "cash",
     name: "Efectivo",
     icon: Banknote,
     description: "Pago en efectivo",
-    color: "green",
-    requiresQR: false,
+    color: "green"
   }
 ]
 
@@ -77,6 +77,7 @@ export function OrderGenerator() {
   const [paymentStatus, setPaymentStatus] = useState<"waiting" | "confirmed" | "failed">("waiting")
   const [generatedQR, setGeneratedQR] = useState("")
   const [isProcessingPayment, setIsProcessingPayment] = useState(false)
+  const [paymentUrl, setPaymentUrl] = useState('');
   
   // Supabase data
   const [products, setProducts] = useState<ProductWithDetails[]>([])
@@ -172,11 +173,12 @@ export function OrderGenerator() {
       // Create order data for Supabase
       const orderData: CreateOrderData = {
         user_id: selectedCustomer.id,
-        customer_name: selectedCustomer.full_name || selectedCustomer.email,
+        // customer_id: selectedCustomer.id,
         customer_email: selectedCustomer.email,
         payment_method: selectedPayment.id as any,
+        qr_code: generateQRCode(),
         total_amount: calculateTotal(),
-        sale_type: 'POS',
+        status: 'waiting_payment',
         items: orderItems.map(item => ({
           product_variant_id: item.productVariantId,
           quantity: item.quantity,
@@ -184,39 +186,35 @@ export function OrderGenerator() {
         }))
       }
 
-      if (selectedPayment.requiresQR) {
         // For QR Mercado Pago, show QR and simulate waiting
-        const qrData = `MP-PAY-${Date.now()}-${selectedCustomer.id}`
-        setGeneratedQR(qrData)
+        const qrData = orderData.qr_code
+        setGeneratedQR(qrData || "")
         setShowPaymentQR(true)
         setPaymentStatus("waiting")
         setIsProcessingPayment(false)
+        const order = await createOrder(orderData);
 
-        // Simulate payment confirmation after 5 seconds
-        setTimeout(async () => {
-          try {
-            // Create the actual order in Supabase
-            await createOrder(orderData)
-            setPaymentStatus("confirmed")
-          } catch (error) {
-            console.error("Error creating order:", error)
-            setPaymentStatus("failed")
-          }
-        }, 5000)
-      } else {
-        // For other methods, process immediately
-        try {
-          // Create the actual order in Supabase
-          await createOrder(orderData)
-          
-          setPaymentStatus("confirmed")
-        } catch (error) {
-          console.error("Error creating order:", error)
-          setPaymentStatus("failed")
-        } finally {
-          setIsProcessingPayment(false)
+        if(selectedPayment.id === "card") {
+          const res = await fetch("/api/payment", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              orderId: order.id,
+              chargeAmount: orderData.total_amount,
+              userId: selectedCustomer.id,
+              payer: {
+                email: selectedCustomer.email,
+                name: order.customer_id,
+              },
+            }),
+          });
+          console.log('payment res ------>', res)
+          // setPaymentUrl(res?.paymentUrl)
         }
-      }
+
+        setPaymentStatus("confirmed")
 
     } catch (error) {
       console.error("Error processing payment:", error)
@@ -556,7 +554,7 @@ export function OrderGenerator() {
                         <>
                           <selectedPayment.icon className="h-5 w-5 mr-2" />
                           <span className="truncate">
-                            {selectedPayment.requiresQR ? "Generar QR de Pago" : `Procesar Pago ${selectedPayment.name}`}
+                            {`Procesar Pago ${selectedPayment.name}`}
                           </span>
                         </>
                       )}
@@ -568,12 +566,12 @@ export function OrderGenerator() {
           )}
 
           {/* QR de pago (solo para Mercado Pago) */}
-          {showPaymentQR && selectedPayment?.requiresQR && (
+          {showPaymentQR  && (
             <Card>
               <CardHeader>
                 <CardTitle className="flex items-center gap-2 text-center justify-center">
                   <QrCode className="h-6 w-6 text-purple-600" />
-                  {selectedPayment.name}
+                  {selectedPayment?.name}
                 </CardTitle>
               </CardHeader>
               <CardContent className="p-4 sm:p-6 text-center space-y-6">
@@ -581,7 +579,16 @@ export function OrderGenerator() {
                 <div className="flex justify-center px-4">
                   <div className="w-48 h-48 sm:w-64 sm:h-64 bg-white dark:bg-gray-800 border-4 border-purple-200 dark:border-purple-700 rounded-lg flex items-center justify-center">
                     <div className="text-center p-2">
-                      <QrCode className="h-16 w-16 sm:h-20 sm:w-20 text-purple-600 dark:text-purple-400 mx-auto mb-2 sm:mb-4" />
+                      {/* <QrCode className="" /> */}
+                      <QRCodeSVG
+                      value={generatedQR}
+                      size={192}
+                      level="M"
+                      className="qr-code-svg h-16 w-16 sm:h-20 sm:w-20 text-purple-600 dark:text-purple-400 mx-auto mb-2 sm:mb-4"
+                      bgColor="#ffffff"
+                      fgColor="#000000"
+                      data-qr={generatedQR}
+                    />
                       <div className="text-xs font-mono bg-gray-100 dark:bg-gray-700 p-1 sm:p-2 rounded break-all">
                         {generatedQR}
                       </div>
@@ -613,7 +620,7 @@ export function OrderGenerator() {
                         <span className="font-semibold text-lg">✅ Pago recibido. Pedido confirmado.</span>
                       </div>
                       <p className="text-sm text-green-600 dark:text-green-400 mt-2">
-                        El pedido ha sido procesado exitosamente con {selectedPayment.name}
+                        El pedido ha sido procesado exitosamente con {selectedPayment?.name}
                       </p>
                     </div>
                   )}
@@ -622,7 +629,7 @@ export function OrderGenerator() {
                 {/* Botones de acción */}
                 <div className="flex flex-col sm:flex-row gap-3">
                   {paymentStatus === "confirmed" && (
-                    <Button onClick={resetOrder} className="flex-1 h-12 sm:h-auto" size="lg">
+                    <Button onClick={resetOrder} variant="default" className="flex-1 h-12 sm:h-auto">
                       <Plus className="h-4 w-4 mr-2" />
                       Nuevo Pedido
                     </Button>
@@ -638,7 +645,7 @@ export function OrderGenerator() {
           )}
 
           {/* Confirmación para métodos sin QR */}
-          {!showPaymentQR && paymentStatus === "confirmed" && selectedPayment && !selectedPayment.requiresQR && (
+          {!showPaymentQR && paymentStatus === "confirmed" && selectedPayment &&  (
             <Card>
               <CardContent className="p-4 sm:p-6">
                 <div className="text-center space-y-4">
