@@ -66,6 +66,8 @@ import {
   Loader2,
 } from "lucide-react"
 
+import { updateOrder} from "@/lib/services/orders"
+
 export default function SalesPage() {
   const [sales, setSales] = useState<SaleWithDetails[]>([])
   const [products, setProducts] = useState<ProductWithDetails[]>([])
@@ -159,7 +161,8 @@ export default function SalesPage() {
 
   const handleMarkAsDelivered = async (saleId: string) => {
     try {
-      await markSaleAsDelivered(saleId)
+      // await markSaleAsDelivered(saleId)
+      await updateOrder(saleId, {status: "delivered"})
       await loadData() // Reload data to get updated stats
       toast({
         title: "Sale Marked as Delivered",
