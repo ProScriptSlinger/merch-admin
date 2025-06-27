@@ -549,6 +549,7 @@ export default function SalesPage() {
             <TableHeader>
               <TableRow>
                 <TableHead>Email</TableHead>
+                <TableHead>DNI</TableHead>
                 <TableHead>Productos</TableHead>
                 <TableHead>Total</TableHead>
                 <TableHead>Método Pago</TableHead>
@@ -567,6 +568,9 @@ export default function SalesPage() {
                       <Mail className="mr-2 h-4 w-4 text-muted-foreground" />
                       <span className="truncate max-w-[150px]">{sale.customer_email}</span>
                     </div>
+                  </TableCell>
+                  <TableCell>
+                    {sale.customer_id}
                   </TableCell>
                   <TableCell>
                     {sale.items.length === 1
