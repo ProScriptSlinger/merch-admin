@@ -581,7 +581,7 @@ export default function SalesPage() {
                     </Badge>
                   </TableCell>
                   <TableCell>
-                    {sale.payment_validated ? (
+                    {sale.status === "delivered" ? (
                       <Badge variant="default" className="bg-green-500 hover:bg-green-600 text-white">
                         <Check className="mr-1 h-3 w-3" /> Validado
                       </Badge>
