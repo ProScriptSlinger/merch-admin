@@ -67,6 +67,7 @@ import {
 } from "lucide-react"
 
 import { updateOrder} from "@/lib/services/orders"
+import { formatArgentineNumber } from "@/lib/utils"
 
 export default function SalesPage() {
   const [sales, setSales] = useState<SaleWithDetails[]>([])
@@ -377,7 +378,7 @@ export default function SalesPage() {
             <DollarSign className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-xl sm:text-2xl font-bold">${stats.totalSales.toLocaleString()}</div>
+            <div className="text-xl sm:text-2xl font-bold">${formatArgentineNumber(stats.totalSales)}</div>
             <p className="text-xs text-muted-foreground">{stats.totalSalesCount} ventas registradas</p>
           </CardContent>
         </Card>
@@ -580,7 +581,7 @@ export default function SalesPage() {
                       ? `${sale.items[0].product_variant.product.name} (x${sale.items[0].quantity})`
                       : `${sale.items.length} items`}
                   </TableCell>
-                  <TableCell className="font-semibold">${(sale.total_amount || 0).toLocaleString()}</TableCell>
+                  <TableCell className="font-semibold">${formatArgentineNumber(sale.total_amount || 0)}</TableCell>
                   <TableCell>
                     <Badge variant="outline" className={`${getPaymentMethodColor(sale?.payment_method as PaymentMethod || "cash")} text-white`}>
                       {getPaymentMethodIcon(sale?.payment_method as PaymentMethod || "cash")}
@@ -702,7 +703,7 @@ export default function SalesPage() {
         <CardFooter>
           <div className="text-xs text-muted-foreground">
             Total de ventas mostradas: <strong>{sales.length}</strong> | Total en ventas:{" "}
-            <strong>${sales.reduce((sum, sale) => sum + (sale.total_amount || 0), 0).toLocaleString()}</strong>
+            <strong>${formatArgentineNumber(sales.reduce((sum, sale) => sum + (sale.total_amount || 0), 0))}</strong>
           </div>
         </CardFooter>
       </Card>

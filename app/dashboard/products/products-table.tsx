@@ -15,6 +15,7 @@ import { Trash2, Users, Edit } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { deleteProduct } from "@/lib/services/products";
 import type { ProductWithDetails } from "@/lib/services/products";
+import { formatArgentineNumber } from "@/lib/utils";
 
 interface ProductsTableProps {
   products: ProductWithDetails[];
@@ -132,7 +133,7 @@ export default function ProductsTable({
                 <div className="flex flex-wrap gap-1 justify-center">
                   {product.variants.slice(0, 3).map((v) => (
                     <Badge key={v.size} variant="secondary" className="text-xs">
-                      {v.size}: ${v.price}
+                      {v.size}: ${formatArgentineNumber(v.price)}
                     </Badge>
                   ))}
                   {product.variants.length > 3 && (
