@@ -165,6 +165,8 @@ export default function ScanPage() {
 
   const getStatusIcon = () => {
     switch (orderStatus) {
+      case "waiting_payment":
+        return <CreditCard className="h-6 w-6 text-yellow-600" />
       case "delivered":
         return <PartyPopper className="h-6 w-6 text-green-600" />
       case "cancelled":
@@ -176,6 +178,8 @@ export default function ScanPage() {
 
   const getStatusColor = () => {
     switch (orderStatus) {
+      case "waiting_payment":
+        return "bg-red-100 text-red-800 border-red-200 dark:bg-red-950/30 dark:text-red-200 dark:border-red-800"
       case "delivered":
         return "bg-green-100 text-green-800 border-green-200 dark:bg-green-950/30 dark:text-green-200 dark:border-green-800"
       case "cancelled":
@@ -187,6 +191,8 @@ export default function ScanPage() {
 
   const getStatusText = () => {
     switch (orderStatus) {
+      case "waiting_payment":
+        return "Pendiente de Pago"
       case "delivered":
         return "Entregado"
       case "cancelled":
@@ -695,14 +701,14 @@ export default function ScanPage() {
                         <X className="h-5 w-5 mr-2" />
                         {isLoading ? "Procesando..." : "❌ Cancelar Entrega"}
                       </Button>
-                      <Button
+                      {/* <Button
                         onClick={() => setShowEditDialog(true)}
                         variant="outline"
                         className="flex-1 h-12 text-lg font-semibold border-blue-200 dark:border-blue-700 text-blue-700 dark:text-blue-300 hover:bg-blue-50 dark:hover:bg-blue-950/50"
                       >
                         <Edit3 className="h-5 w-5 mr-2" />
                         ✏️ Editar Pedido
-                      </Button>
+                      </Button> */}
                     </div>
                   </>
                 )}
