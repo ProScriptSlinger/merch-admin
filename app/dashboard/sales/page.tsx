@@ -585,7 +585,7 @@ export default function SalesPage() {
                     </Badge>
                   </TableCell>
                   <TableCell>
-                    {sale.status === "delivered" ? (
+                    {sale.status === "pending" || sale.status === "delivered" ? (
                       <Badge variant="default" className="bg-green-500 hover:bg-green-600 text-white">
                         <Check className="mr-1 h-3 w-3" /> Validado
                       </Badge>
@@ -710,7 +710,7 @@ export default function SalesPage() {
           <DialogHeader>
             <DialogTitle>Detalles de la Venta - {viewingSaleDetails?.id}</DialogTitle>
             <DialogDescription>
-              Email: {viewingSaleDetails?.customer_email} | Tipo: {viewingSaleDetails?.sale_type} | Estado:{" "}
+              Email: {viewingSaleDetails?.customer_email} | DNI: {viewingSaleDetails?.customer_id} | Tipo: {viewingSaleDetails?.sale_type} | Estado:{" "}
               {viewingSaleDetails?.status}
             </DialogDescription>
           </DialogHeader>
